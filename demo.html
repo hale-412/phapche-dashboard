@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>[Dùng thử] Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=11">
+<link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body>
 
@@ -107,6 +107,7 @@
         </select>
         <div class="spacer"></div>
         <button class="btn ghost" id="export-btn">⬇ Xuất Excel (CSV)</button>
+        <button class="btn ghost lead-only" id="import-tasks-btn">⬆ Nhập từ Excel</button>
         <button class="btn primary lead-only" id="add-task-btn">+ Thêm văn bản</button>
       </div>
       <div class="card table-wrap">
@@ -143,6 +144,7 @@
         <select id="l-handler"><option value="">Mọi chuyên viên</option></select>
         <div class="spacer"></div>
         <button class="btn ghost" id="export-licenses-btn">⬇ Xuất Excel (CSV)</button>
+        <button class="btn ghost lead-only" id="import-licenses-btn">⬆ Nhập từ Excel</button>
         <button class="btn primary lead-only" id="add-license-btn">+ Tiếp nhận hồ sơ</button>
       </div>
       <div class="card table-wrap">
@@ -466,10 +468,10 @@
   </form>
 </dialog>
 
-<!-- ===================== MODAL NHẬP DOANH NGHIỆP TỪ EXCEL ===================== -->
+<!-- ===================== MODAL NHẬP TỪ EXCEL (dùng chung 3 tab) ===================== -->
 <dialog id="import-dialog" class="modal wide">
   <div class="modal-head">
-    <h2>Nhập doanh nghiệp từ Excel</h2>
+    <h2 id="import-title">Nhập doanh nghiệp từ Excel</h2>
     <button type="button" class="btn ghost" data-close>✕</button>
   </div>
   <div class="modal-body">
@@ -549,13 +551,13 @@
 
 <!-- CHẾ ĐỘ DÙNG THỬ TRÊN MÁY: dữ liệu lưu trong localStorage của trình duyệt này.
      ?sample=1 nạp dữ liệu mẫu · ?reset=1 xóa hết · ?user=N xem với vai người thứ N trong danh sách -->
-<script src="js/config.js?v=11"></script>
+<script src="js/config.js?v=12"></script>
 <script>
   window.MOCK_USER = +(new URLSearchParams(location.search).get("user") || 1);
   window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
 </script>
-<script src="js/demo-data.js?v=11"></script>
-<script src="js/app.js?v=11"></script>
+<script src="js/demo-data.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
 </body>
 </html>

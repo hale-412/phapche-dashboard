@@ -122,6 +122,10 @@ Mỗi sáng 7h30 (thứ 2-6), mỗi chuyên viên nhận email liệt kê việc
     nên có thể nhập lại file nhiều lần. Sheet "Thu hồi, Nộp lại GP" nhập với trạng thái *Đã chấm dứt*. Ngày dạng số Excel hay `dd/mm/yyyy` đều đọc được.
   - Mở một DN sẽ thấy hồ sơ giấy phép gắn với mã số đó (kèm các yêu cầu cập nhật TTDN cũ để tra cứu).
   - Tab Giấy phép và form Văn bản (loại việc *Doanh nghiệp*) tự điền tên DN khi gõ mã số đã có trong danh sách. Danh sách trường & mẫu tiêu đề nhận diện trong `js/config.js` (`COMPANY_FIELDS`).
+- **⬆ Nhập từ Excel** có ở cả 3 tab (Văn bản / Công việc · Hồ sơ Giấy phép · Doanh nghiệp), chỉ Trưởng phòng thấy. Đọc được `.xlsx` và `.csv`;
+  file xuất ra từ nút **⬇ Xuất Excel (CSV)** nhập lại được nguyên vẹn. Tên chuyên viên ở cột Phụ trách được khớp với tài khoản đã có (bỏ dấu, bỏ chức danh sau dấu "-");
+  không khớp thì để trống và báo số dòng ở phần tóm tắt. Dòng trùng **số văn bản** (hoặc **số hồ sơ**, **mã số DN**) được cập nhật chứ không nhân đôi.
+  Sửa danh sách cột nhận diện trong `js/config.js` (`TASK_FIELDS`, `LICENSE_FIELDS`, `COMPANY_FIELDS`).
 - Bấm vào một dòng để xem chi tiết và **lịch sử thay đổi** (ai điều chuyển, khi nào, tiến độ từng bước).
 - Màu cảnh báo: 🔴 quá hạn / đến hạn hôm nay, 🟡 còn ≤3 ngày. Số việc quá hạn hiện trên tiêu đề tab trình duyệt.
 - Thông báo trình duyệt hiện khi mở app nếu bạn có việc quá hạn / sắp đến hạn (cho phép khi được hỏi).
