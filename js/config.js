@@ -47,6 +47,44 @@ window.UPDATE_STATUSES = [
   { value: "rejected",   label: "Không chấp thuận", cls: "cancelled", final: true },
 ];
 
+// Nhập từ Excel/CSV cho tab Văn bản / Công việc.
+// conv: "date" ngày · "person" tên chuyên viên → tài khoản · "int" số · "status"/"priority"/"category" quy về mã lưu trong DB.
+// THỨ TỰ QUAN TRỌNG: trường nào khớp trước thì chiếm cột đó (vd. "Nội dung hồ sơ DN" phải đứng trước "Nội dung").
+window.TASK_FIELDS = [
+  { key: "doc_number",    label: "Số văn bản",         match: /số vb|số văn bản|số đến/i },
+  { key: "doc_date",      label: "Ngày văn bản",       match: /ngày vb|ngày văn bản|ngày ký/i, conv: "date" },
+  { key: "received_date", label: "Ngày đến",           match: /ngày đến|ngày nhận|ngày tiếp nhận/i, conv: "date" },
+  { key: "sender",        label: "Cơ quan gửi",        match: /cơ quan|nơi gửi|người gửi|đơn vị gửi/i },
+  { key: "biz_type",      label: "Nội dung hồ sơ DN",  match: /nội dung hồ sơ|hồ sơ dn|loại hồ sơ/i },
+  { key: "category",      label: "Loại việc",          match: /loại việc|loại công việc|loại vb/i, conv: "category" },
+  { key: "tax_code",      label: "Mã số DN",           match: /mã số|msdn|mst/i },
+  { key: "content",       label: "Nội dung / Trích yếu", match: /nội dung|trích yếu|tóm tắt/i },
+  { key: "deadline",      label: "Thời hạn xử lý",     match: /thời hạn|hạn xử lý|hạn hoàn thành/i, conv: "date" },
+  { key: "handler1",      label: "Phụ trách mức 1",    match: /phụ trách 1|phụ trách mức 1|chuyên viên chính/i, conv: "person" },
+  { key: "handler2",      label: "Phụ trách mức 2",    match: /phụ trách 2|phụ trách mức 2|phối hợp/i, conv: "person" },
+  { key: "status",        label: "Trạng thái",         match: /trạng thái|tình trạng/i, conv: "status" },
+  { key: "progress_note", label: "Ghi chú tiến độ",    match: /ghi chú tiến độ|diễn biến/i },
+  { key: "progress",      label: "Tiến độ %",          match: /tiến độ/i, conv: "int" },
+  { key: "result",        label: "Kết quả xử lý",      match: /kết quả|số vb đi/i },
+  { key: "priority",      label: "Mức độ",             match: /mức độ|ưu tiên|khẩn/i, conv: "priority" },
+];
+
+// Nhập từ Excel/CSV cho tab Hồ sơ Giấy phép
+window.LICENSE_FIELDS = [
+  { key: "file_number",    label: "Số hồ sơ",        match: /số hồ sơ|mã tiếp nhận|mã hồ sơ/i },
+  { key: "company_name",   label: "Tên doanh nghiệp", match: /tên doanh nghiệp|tên công ty|^tên dn/i },
+  { key: "tax_code",       label: "Mã số DN",        match: /mã số|msdn|mst/i },
+  { key: "procedure",      label: "Thủ tục",         match: /thủ tục|loại hồ sơ/i },
+  { key: "received_date",  label: "Ngày nhận",       match: /ngày nhận|ngày tiếp nhận|ngày đến/i, conv: "date" },
+  { key: "deadline",       label: "Hạn trả KQ",      match: /hạn trả|thời hạn|hạn xử lý/i, conv: "date" },
+  { key: "handler1",       label: "Phụ trách mức 1", match: /phụ trách 1|phụ trách mức 1/i, conv: "person" },
+  { key: "handler2",       label: "Phụ trách mức 2", match: /phụ trách 2|phụ trách mức 2/i, conv: "person" },
+  { key: "status",         label: "Trạng thái",      match: /trạng thái|tình trạng/i, conv: "lstatus" },
+  { key: "license_number", label: "Số giấy phép",    match: /số giấy phép|^số gp/i },
+  { key: "issued_date",    label: "Ngày cấp",        match: /ngày cấp/i, conv: "date" },
+  { key: "note",           label: "Ghi chú",         match: /ghi chú/i },
+];
+
 // Module Doanh nghiệp (hồ sơ / profile doanh nghiệp, nhập từ Excel)
 window.COMPANY_STATUSES = [
   { value: "active", label: "Đang hoạt động",   cls: "done" },
@@ -75,7 +113,7 @@ window.COMPANY_FIELDS = [
   { key: "fax",                  label: "Fax",                      match: /fax/i },
   { key: "email",                label: "Email",                    match: /mail/i },
   { key: "company_type",         label: "Loại hình (CTCP/TNHH)",    match: /ghi chú 2|loại hình/i },
-  { key: "license_number",       label: "Số GP (hiện tại)",         match: /^số gp$/i },
+  { key: "license_number",       label: "Số GP (hiện tại)",         match: /^số gp$|^số gp \(hiện tại\)$/i },
   { key: "license_date",         label: "Ngày cấp GP lần đầu",      match: /ngày cấp gp lần đầu|^ngày cấp$/i, date: true },
   { key: "first_license_number", label: "Số GP lần đầu",            match: /số gp lần đầu/i },
   { key: "first_license_date",   label: "Ngày cấp lần đầu",         match: /^ngày cấp lần đầu/i, date: true },
@@ -88,7 +126,7 @@ window.COMPANY_FIELDS = [
   { key: "ds101",                label: "DS 101",                   match: /ds ?101/i },
   { key: "note",                 label: "Ghi chú",                  match: /ghi chú 1|^ghi chú$/i },
   { key: "ended_year",           label: "Năm chấm dứt",             match: /năm chấm dứt/i },
-  { key: "ended_type",           label: "Hình thức chấm dứt",       match: /nộp lại|thu hồi/i },
+  { key: "ended_type",           label: "Hình thức chấm dứt",       match: /nộp lại|thu hồi|hình thức chấm dứt/i },
   { key: "ended_reason",         label: "Lý do chấm dứt",           match: /lý do/i },
   { key: "ended_ref",            label: "Văn bản chấm dứt",         match: /văn bản|công văn/i },
 ];

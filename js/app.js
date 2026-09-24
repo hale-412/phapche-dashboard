@@ -19,6 +19,8 @@
   const CSTAT = window.COMPANY_STATUSES || [];
   const CSTAT_MAP = Object.fromEntries(CSTAT.map((s) => [s.value, s]));
   const CFIELDS = window.COMPANY_FIELDS || [];
+  const TFIELDS = window.TASK_FIELDS || [];
+  const LFIELDS = window.LICENSE_FIELDS || [];
 
   const state = {
     sb: null, session: null, me: null,
@@ -746,8 +748,66 @@
     a.click(); URL.revokeObjectURL(a.href);
   }
 
+  // ---- Cấu hình cho từng tab có thể nhập từ Excel ----
+  // Khớp tên chuyên viên trong file với tài khoản đã có (bỏ dấu, bỏ phần chức danh sau dấu "-")
+  const deAccent = (v) => String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  function personId(v) {
+    const raw = deAccent(v).split(" - ")[0];
+    if (!raw) return null;
+    const hit = state.profiles.find((p) => deAccent(p.full_name) === raw)
+      || state.profiles.find((p) => deAccent(p.email).split("@")[0] === raw)
+      || state.profiles.find((p) => deAccent(p.full_name).endsWith(" " + raw) || deAccent(p.full_name).startsWith(raw + " "));
+    return hit ? hit.id : null;
+  }
+  const byLabel = (list, v, fallback) => {
+    const t = deAccent(v);
+    const hit = list.find((x) => deAccent(x.label) === t) || list.find((x) => x.value === String(v || "").trim());
+    return hit ? hit.value : fallback;
+  };
+  const CONV = {
+    date: (v) => excelDate(v),
+    person: (v) => personId(cellText(v)),
+    int: (v) => { const n = parseInt(String(cellText(v)).replace(/[^\d-]/g, ""), 10); return isNaN(n) ? null : Math.max(0, Math.min(100, n)); },
+    status: (v) => byLabel(Object.entries(STATUS).map(([value, label]) => ({ value, label })), v, "new"),
+    lstatus: (v) => byLabel(LSTAT, v, LSTAT[0]?.value || "received"),
+    priority: (v) => (/khan|urgent/i.test(deAccent(v)) ? "urgent" : "normal"),
+    category: (v) => cellText(v) || "Văn bản đến",
+  };
+  const IMP_MODES = {
+    companies: {
+      title: "Nhập doanh nghiệp từ Excel", table: "companies", fields: () => CFIELDS, view: "companies",
+      unit: "doanh nghiệp", required: "name", requiredLabel: "Tên công ty", useStatusSelect: true,
+      hint: 'Chọn file .xlsx / .csv (tiêu đề cột ở dòng đầu). Dòng trùng <b>mã số DN</b> (hoặc cùng tên + số GP) sẽ được cập nhật, còn lại thêm mới.',
+      keyOf: (o) => (validTax(o.tax_code) ? o.tax_code : "N:" + (o.name || "").toLowerCase()),
+      match: (o) => {
+        if (validTax(o.tax_code)) { const hit = state.companies.find((c) => c.tax_code === o.tax_code); if (hit) return hit; }
+        const n = (o.name || "").toLowerCase().replace(/\s+/g, " ");
+        const gp = (x) => String(x || "").replace(/\D/g, "");
+        return state.companies.find((c) => (c.name || "").toLowerCase().replace(/\s+/g, " ") === n && gp(c.license_number) === gp(o.license_number)) || null;
+      },
+    },
+    tasks: {
+      title: "Nhập văn bản / công việc từ Excel", table: "tasks", fields: () => TFIELDS, view: "tasks",
+      unit: "văn bản", required: "content", requiredLabel: "Nội dung / Trích yếu", useStatusSelect: false,
+      defaults: { category: "Văn bản đến", status: "new", progress: 0, priority: "normal" },
+      hint: 'Chọn file .xlsx / .csv xuất ra từ nút <b>⬇ Xuất Excel (CSV)</b>, hoặc file theo dõi của phòng. Tên chuyên viên ở cột Phụ trách được khớp với tài khoản đã có; không khớp thì để trống, giao lại sau.',
+      keyOf: (o) => (o.doc_number || "") + "|" + (o.content || "").slice(0, 60).toLowerCase(),
+      match: (o) => (o.doc_number ? state.tasks.find((t) => t.doc_number && t.doc_number === o.doc_number) || null : null),
+    },
+    licenses: {
+      title: "Nhập hồ sơ Giấy phép từ Excel", table: "licenses", fields: () => LFIELDS, view: "licenses",
+      unit: "hồ sơ", required: "company_name", requiredLabel: "Tên doanh nghiệp", useStatusSelect: false,
+      defaults: { procedure: "Cấp mới", status: LSTAT[0]?.value || "received" },
+      hint: 'Chọn file .xlsx / .csv xuất ra từ nút <b>⬇ Xuất Excel (CSV)</b>. Dòng trùng <b>số hồ sơ</b> sẽ được cập nhật.',
+      keyOf: (o) => (o.file_number || "") + "|" + (o.company_name || "").toLowerCase(),
+      match: (o) => (o.file_number ? state.licenses.find((l) => l.file_number && l.file_number === o.file_number) || null : null),
+    },
+  };
+  const impMode = () => IMP_MODES[imp.mode] || IMP_MODES.companies;
+  const impFields = () => impMode().fields();
+
   // ---- Nhập từ Excel ----
-  const imp = { wb: null, rows: [], headers: [], map: [] };
+  const imp = { wb: null, rows: [], headers: [], map: [], mode: "companies" };
 
   function excelDate(v) {
     if (v == null || v === "") return null;
@@ -763,8 +823,12 @@
   }
   const cellText = (v) => (v == null ? "" : typeof v === "number" ? (Number.isInteger(v) ? String(v) : String(v)) : String(v).trim());
 
-  function openImport() {
+  function openImport(mode = "companies") {
+    imp.mode = mode;
     imp.wb = null; imp.rows = []; imp.headers = []; imp.map = [];
+    const M = impMode();
+    $("#import-title").textContent = M.title;
+    $("#imp-hint").innerHTML = M.hint;
     $("#imp-file").value = "";
     ["#imp-sheet", "#imp-status", "#imp-map-wrap", "#imp-summary", "#imp-preview-wrap", "#imp-error"].forEach((s) => ($(s).hidden = true));
     $("#imp-progress").textContent = ""; $("#imp-run-btn").disabled = true;
@@ -775,20 +839,28 @@
     const file = e.target.files[0]; if (!file) return;
     if (!window.XLSX) { showImpError("Thư viện đọc Excel chưa tải xong (cần kết nối Internet). Thử lại sau vài giây."); return; }
     try {
-      const buf = await file.arrayBuffer();
-      imp.wb = XLSX.read(buf, { type: "array", cellDates: false });
+      // File .csv phải đọc thành chuỗi UTF-8 trước; đưa thẳng byte cho thư viện sẽ bị hiểu là latin1 → vỡ tiếng Việt
+      if (/\.csv$/i.test(file.name) || file.type === "text/csv") {
+        let text = await file.text();
+        if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);          // bo dau BOM o dau file
+        // raw: giữ nguyên dạng chữ, không để thư viện tự hiểu "01/09/2026" theo kiểu Mỹ (tháng/ngày)
+        imp.wb = XLSX.read(text, { type: "string", raw: true, cellDates: false });
+      } else {
+        const buf = await file.arrayBuffer();
+        imp.wb = XLSX.read(buf, { type: "array", cellDates: false });
+      }
     } catch (err) { showImpError("Không đọc được file: " + err.message); return; }
     const sel = $("#imp-sheet");
     sel.innerHTML = imp.wb.SheetNames.map((n) => `<option>${esc(n)}</option>`).join("");
     sel.hidden = imp.wb.SheetNames.length < 2;
-    $("#imp-status").hidden = false;
+    $("#imp-status").hidden = !impMode().useStatusSelect;
     loadSheet();
   }
 
   function loadSheet() {
     if (!imp.wb) return;
     const name = $("#imp-sheet").value || imp.wb.SheetNames[0];
-    $("#imp-status").value = /thu h|nộp lại|nop lai|chấm dứt/i.test(name) ? "ended" : "active";
+    if (impMode().useStatusSelect) $("#imp-status").value = /thu h|nộp lại|nop lai|chấm dứt/i.test(name) ? "ended" : "active";
     const aoa = XLSX.utils.sheet_to_json(imp.wb.Sheets[name], { header: 1, raw: true, defval: null });
     const headerRow = aoa.findIndex((r) => r.filter((x) => x != null && String(x).trim()).length >= 3);
     if (headerRow < 0) { showImpError("Không tìm thấy dòng tiêu đề."); return; }
@@ -799,6 +871,7 @@
     const sampleOf = (i) => imp.rows.map((r) => cellText(r[i])).filter(Boolean).slice(0, 80);
     // Cột không có tiêu đề: đoán theo nội dung (người đại diện "…- GĐ", địa chỉ "phường/quận…", văn bản "Cv …/BNV")
     const guessByContent = (i) => {
+      if (imp.mode !== "companies") return "";
       const smp = sampleOf(i); if (smp.length < 3) return "";
       const share = (re) => smp.filter((v) => re.test(v)).length / smp.length;
       if (!used.has("legal_rep") && share(/(GĐ|TGĐ|PGĐ|giám đốc|chủ tịch)/i) > 0.3) return "legal_rep";
@@ -808,12 +881,12 @@
       return "";
     };
     imp.map = imp.headers.map((h, i) => {
-      const f = h ? CFIELDS.find((f) => f.match.test(h) && (!used.has(f.key) || f.key === "ended_type")) : null;
+      const f = h ? impFields().find((f) => f.match.test(h) && (!used.has(f.key) || f.key === "ended_type")) : null;
       const key = f ? f.key : guessByContent(i);
       if (key) used.add(key);
       return key;
     });
-    const opts = `<option value="">— Bỏ qua —</option>` + CFIELDS.map((f) => `<option value="${f.key}">${esc(f.label)}</option>`).join("");
+    const opts = `<option value="">— Bỏ qua —</option>` + impFields().map((f) => `<option value="${f.key}">${esc(f.label)}</option>`).join("");
     $("#imp-map tbody").innerHTML = imp.headers.map((h, i) => {
       const sample = sampleOf(i).slice(0, 3).join(" | ");
       if (!h && !sample) return "";
@@ -825,77 +898,91 @@
   }
 
   function importRows() {
-    const status = $("#imp-status").value;
+    const M = impMode(), F = impFields();
+    const base = M.useStatusSelect ? { status: $("#imp-status").value } : {};
     return imp.rows.map((r) => {
-      const o = { status };
+      const o = { ...base };
       imp.map.forEach((k, i) => {
         if (!k) return;
         const raw = r[i]; if (raw == null || String(raw).trim() === "") return;
-        const f = CFIELDS.find((f) => f.key === k);
-        let v = f?.date ? excelDate(raw) : f?.num ? parseVnd(cellText(raw)) : cellText(raw);
-        if (v == null || v === "") return;
-        if (f?.num) { o[k] = o[k] ?? v; return; }
-        if (!f?.date && !["address", "training_facility", "training_address", "staff_list"].includes(k)) v = v.replace(/\s*\n+\s*/g, " / ");
-        o[k] = o[k] ? o[k] + " / " + v : v;                                 // 2 cột cùng trường (vd. Nộp lại + Thu hồi) → ghép
+        const f = F.find((f) => f.key === k);
+        const conv = f?.conv || (f?.date ? "date" : f?.num ? "vnd" : "");
+        if (conv === "vnd") { o[k] = o[k] ?? parseVnd(cellText(raw)); return; }
+        if (conv && CONV[conv]) { const v = CONV[conv](raw); if (v != null && v !== "") o[k] = o[k] ?? v; return; }
+        let v = cellText(raw);
+        if (v === "") return;
+        if (!["address", "training_facility", "training_address", "staff_list", "content", "progress_note", "result", "note"].includes(k)) v = v.replace(/\s*\n+\s*/g, " / ");
+        o[k] = o[k] ? o[k] + " / " + v : v;                                 // 2 cột cùng trường → ghép
       });
       if (o.tax_code) o.tax_code = normTax(o.tax_code);
       return o;
-    }).filter((o) => o.name);
+    }).filter((o) => o[M.required]);
   }
 
-  function matchExisting(o) {
-    if (validTax(o.tax_code)) { const hit = state.companies.find((c) => c.tax_code === o.tax_code); if (hit) return hit; }
-    const n = (o.name || "").toLowerCase().replace(/\s+/g, " ");
-    const gp = (x) => String(x || "").replace(/\D/g, "");
-    return state.companies.find((c) => (c.name || "").toLowerCase().replace(/\s+/g, " ") === n && gp(c.license_number) === gp(o.license_number)) || null;
-  }
+  const matchExisting = (o) => impMode().match(o);
 
   function buildPreview() {
-    const rows = importRows();
-    const cols = CFIELDS.filter((f) => imp.map.includes(f.key));
-    if (!imp.map.includes("name")) { showImpError('Cần chọn cột nào là "Tên công ty".'); $("#imp-run-btn").disabled = true; return; }
+    const M = impMode(), rows = importRows();
+    const cols = impFields().filter((f) => imp.map.includes(f.key));
+    if (!imp.map.includes(M.required)) { showImpError(`Cần chọn cột nào là "${M.requiredLabel}".`); $("#imp-run-btn").disabled = true; return; }
     $("#imp-error").hidden = true;
-    const upd = rows.filter(matchExisting).length, badTax = rows.filter((o) => o.tax_code && !validTax(o.tax_code)).length, noTax = rows.filter((o) => !o.tax_code).length;
+    const upd = rows.filter(matchExisting).length;
+    const noPerson = imp.map.includes("handler1") ? rows.filter((o) => !o.handler1).length : 0;
+    const badTax = rows.filter((o) => o.tax_code && !validTax(o.tax_code)).length;
+    const noTax = M.table === "companies" ? rows.filter((o) => !o.tax_code).length : 0;
     $("#imp-summary").hidden = false;
-    $("#imp-summary").innerHTML = `<b>${rows.length}</b> doanh nghiệp sẽ được nhập: <b>${rows.length - upd}</b> thêm mới, <b>${upd}</b> cập nhật (đã có).` +
-      (noTax ? ` <span class="due warn">${noTax} dòng không có mã số DN</span>` : "") + (badTax ? ` <span class="due warn">${badTax} mã số không đúng định dạng (vẫn nhập, cần sửa sau)</span>` : "");
+    $("#imp-summary").innerHTML = `<b>${rows.length}</b> ${esc(M.unit)} sẽ được nhập: <b>${rows.length - upd}</b> thêm mới, <b>${upd}</b> cập nhật (đã có).` +
+      (noTax ? ` <span class="due warn">${noTax} dòng không có mã số DN</span>` : "") +
+      (badTax ? ` <span class="due warn">${badTax} mã số không đúng định dạng (vẫn nhập, cần sửa sau)</span>` : "") +
+      (noPerson ? ` <span class="due warn">${noPerson} dòng chưa khớp được tên Phụ trách mức 1 với tài khoản nào — sẽ để trống, giao lại trong app</span>` : "");
+    const show = (f, o) => {
+      const v = o[f.key];
+      if (v == null || v === "") return "";
+      if (f.conv === "date" || f.date) return fmtDate(v);
+      if (f.conv === "person") return nameOf(v);
+      if (f.conv === "status") return STATUS[v] || v;
+      if (f.conv === "lstatus") return LSTAT_MAP[v]?.label || v;
+      if (f.conv === "priority") return v === "urgent" ? "Khẩn" : "Bình thường";
+      if (f.num) return fmtVnd(v);
+      return v;
+    };
     $("#imp-preview thead").innerHTML = `<tr><th>#</th>${cols.map((f) => `<th>${esc(f.label)}</th>`).join("")}<th>Kết quả</th></tr>`;
-    $("#imp-preview tbody").innerHTML = rows.slice(0, 8).map((o, i) => `<tr class="${o.tax_code && !validTax(o.tax_code) ? "warn" : ""}"><td>${i + 1}</td>${cols.map((f) => `<td title="${esc(o[f.key])}">${esc(f.date ? fmtDate(o[f.key]) : f.num ? fmtVnd(o[f.key]) : o[f.key])}</td>`).join("")}<td>${matchExisting(o) ? "Cập nhật" : "Thêm mới"}</td></tr>`).join("") +
+    $("#imp-preview tbody").innerHTML = rows.slice(0, 8).map((o, i) => `<tr class="${o.tax_code && !validTax(o.tax_code) ? "warn" : ""}"><td>${i + 1}</td>${cols.map((f) => `<td title="${esc(show(f, o))}">${esc(show(f, o))}</td>`).join("")}<td>${matchExisting(o) ? "Cập nhật" : "Thêm mới"}</td></tr>`).join("") +
       (rows.length > 8 ? `<tr><td colspan="${cols.length + 2}" class="muted center">… và ${rows.length - 8} dòng nữa</td></tr>` : "");
     $("#imp-preview-wrap").hidden = false;
     $("#imp-run-btn").disabled = rows.length === 0;
   }
 
-  function showImpError(msg) { $("#imp-error").textContent = msg; $("#imp-error").hidden = false; }
-
   async function runImport() {
+    const M = impMode();
     const rows = importRows(); if (!rows.length) return;
     const btn = $("#imp-run-btn"); btn.disabled = true;
     const prog = (t) => ($("#imp-progress").textContent = t);
     const inserts = [], updates = [];
     const seen = new Set();
     rows.forEach((o) => {
-      const key = validTax(o.tax_code) ? o.tax_code : "N:" + (o.name || "").toLowerCase();
+      const key = M.keyOf(o);
       if (seen.has(key)) return; seen.add(key);                             // trùng trong cùng file → lấy dòng đầu
       const hit = matchExisting(o);
-      if (hit) updates.push({ id: hit.id, data: o }); else inserts.push(o);
+      if (hit) updates.push({ id: hit.id, data: o });
+      else inserts.push({ ...(M.defaults || {}), ...o });                 // mac dinh chi ap cho dong them moi
     });
     let done = 0, failed = 0; const total = inserts.length + updates.length;
     for (let i = 0; i < inserts.length; i += 100) {
-      const { error } = await state.sb.from("companies").insert(inserts.slice(i, i + 100));
+      const { error } = await state.sb.from(M.table).insert(inserts.slice(i, i + 100));
       if (error) { failed += Math.min(100, inserts.length - i); showImpError("Lỗi khi thêm: " + error.message); } else done += Math.min(100, inserts.length - i);
       prog(`Đang nhập… ${done}/${total}`);
     }
     for (let i = 0; i < updates.length; i += 20) {
-      const res = await Promise.all(updates.slice(i, i + 20).map((u) => state.sb.from("companies").update(u.data).eq("id", u.id)));
+      const res = await Promise.all(updates.slice(i, i + 20).map((u) => state.sb.from(M.table).update(u.data).eq("id", u.id)));
       res.forEach((r) => (r.error ? failed++ : done++));
       prog(`Đang nhập… ${done}/${total}`);
     }
     prog(`Xong: ${done} thành công${failed ? `, ${failed} lỗi` : ""}`);
-    toast(`Đã nhập ${done} doanh nghiệp${failed ? `, ${failed} lỗi` : ""}`, failed > 0);
+    toast(`Đã nhập ${done} ${M.unit}${failed ? `, ${failed} lỗi` : ""}`, failed > 0);
     await loadAll();
     btn.disabled = false;
-    if (!failed) { $("#import-dialog").close(); switchView("companies"); }
+    if (!failed) { $("#import-dialog").close(); switchView(M.view); }
   }
 
   // ---------- Modal văn bản ----------
@@ -1110,6 +1197,7 @@
     $("#licenses-body").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) openLicense(+tr.dataset.id); });
     $("#add-license-btn").addEventListener("click", () => openLicense(null));
     $("#export-licenses-btn").addEventListener("click", exportLicensesCSV);
+    $("#import-licenses-btn").addEventListener("click", () => openImport("licenses"));
     $("#license-form").addEventListener("submit", saveLicense);
     $("#delete-license-btn").addEventListener("click", deleteLicense);
     $("#l-swap-btn").addEventListener("click", () => { const a = $("#l-handler1"), b = $("#l-handler2"); [a.value, b.value] = [b.value, a.value]; });
@@ -1133,12 +1221,13 @@
       $("#company-dialog").close();
       if (el.dataset.kind === "license") openLicense(+el.dataset.rel);
     });
-    $("#import-companies-btn").addEventListener("click", openImport);
+    $("#import-companies-btn").addEventListener("click", () => openImport("companies"));
     $("#imp-file").addEventListener("change", importFileChosen);
     $("#imp-sheet").addEventListener("change", loadSheet);
     $("#imp-status").addEventListener("change", buildPreview);
     $("#imp-run-btn").addEventListener("click", runImport);
     $("#add-task-btn").addEventListener("click", () => openTask(null));
+    $("#import-tasks-btn").addEventListener("click", () => openImport("tasks"));
     $("#quick-add-task").addEventListener("click", () => openTask(null));
     $("#quick-add-license").addEventListener("click", () => openLicense(null));
     $("#export-btn").addEventListener("click", exportCSV);
