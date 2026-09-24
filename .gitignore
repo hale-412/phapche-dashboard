@@ -1,0 +1,9 @@
+.DS_Store
+Thumbs.db
+supabase/.temp/
+supabase/.branches/
+.env
+
+# File lam viec noi bo - khong day len GitHub
+danh sach doanh nghiep/
+_test.html

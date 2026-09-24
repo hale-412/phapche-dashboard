@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>[Dùng thử] Dashboard Phòng Pháp chế - Kiểm tra</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
+<link rel="stylesheet" href="css/style.css?v=11">
+</head>
+<body>
+
+<!-- ===================== ĐĂNG NHẬP ===================== -->
+<section id="view-login" class="login-wrap" hidden>
+  <form id="login-form" class="login-card">
+    <div class="login-logo">⚖️</div>
+    <h1>Phòng Pháp chế - Kiểm tra</h1>
+    <p class="muted">Hệ thống quản lý văn bản & công việc</p>
+    <label>Email<input type="email" id="login-email" required autocomplete="username"></label>
+    <label>Mật khẩu<input type="password" id="login-password" required autocomplete="current-password"></label>
+    <button type="submit" class="btn primary wide" id="login-btn">Đăng nhập</button>
+    <button type="button" class="btn link wide" id="forgot-btn">Quên mật khẩu?</button>
+    <p id="login-error" class="error" hidden></p>
+  </form>
+</section>
+
+<!-- ===================== ỨNG DỤNG ===================== -->
+<div id="app" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-icon">⚖️</span>
+      <div>
+        <div class="brand-title">Phòng Pháp chế - Kiểm tra</div>
+        <div class="brand-sub">Quản lý văn bản & công việc · v4</div>
+      </div>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button data-view="overview" class="active">Tổng quan</button>
+      <button data-view="tasks">Văn bản / Công việc</button>
+      <button data-view="licenses">Hồ sơ Giấy phép</button>
+      <button data-view="companies">Doanh nghiệp</button>
+      <button data-view="staff">Chuyên viên</button>
+    </nav>
+    <div class="user-box">
+      <span id="user-name"></span>
+      <span id="user-role" class="chip"></span>
+      <button class="btn ghost" id="change-pass-btn" title="Đổi mật khẩu">🔑</button>
+      <button class="btn ghost" id="logout-btn">Đăng xuất</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- ---------- TỔNG QUAN ---------- -->
+    <section id="view-overview" class="view">
+      <div class="filters lead-only">
+        <span class="muted">Thao tác nhanh:</span>
+        <button class="btn primary" id="quick-add-task">+ Thêm văn bản / công việc</button>
+        <button class="btn primary" id="quick-add-license">+ Tiếp nhận hồ sơ giấy phép</button>
+      </div>
+      <div class="tiles" id="tiles"></div>
+
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-head">
+            <h2>Việc cần chú ý</h2>
+            <span class="muted small">Quá hạn & đến hạn trong 3 ngày</span>
+          </div>
+          <div id="attention-list" class="list"></div>
+        </div>
+        <div class="card">
+          <div class="card-head">
+            <h2>Khối lượng việc đang xử lý theo chuyên viên</h2>
+            <span class="muted small">Tính cả phụ trách mức 1 và mức 2</span>
+          </div>
+          <div id="workload-chart"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Việc của tôi</h2>
+          <span class="muted small" id="my-count"></span>
+        </div>
+        <div id="my-list" class="list"></div>
+      </div>
+    </section>
+
+    <!-- ---------- DANH SÁCH ---------- -->
+    <section id="view-tasks" class="view" hidden>
+      <div class="filters">
+        <input type="search" id="f-search" placeholder="Tìm số VB, nội dung, cơ quan gửi…">
+        <select id="f-status">
+          <option value="open">Đang mở (mới + đang xử lý)</option>
+          <option value="new">Mới</option>
+          <option value="in_progress">Đang xử lý</option>
+          <option value="done">Hoàn thành</option>
+          <option value="cancelled">Hủy</option>
+          <option value="all">Tất cả</option>
+        </select>
+        <select id="f-handler"><option value="">Mọi chuyên viên</option></select>
+        <select id="f-due">
+          <option value="">Mọi thời hạn</option>
+          <option value="overdue">Quá hạn</option>
+          <option value="today">Đến hạn hôm nay</option>
+          <option value="3d">Trong 3 ngày</option>
+          <option value="7d">Trong 7 ngày</option>
+          <option value="month">Tháng này</option>
+        </select>
+        <div class="spacer"></div>
+        <button class="btn ghost" id="export-btn">⬇ Xuất Excel (CSV)</button>
+        <button class="btn primary lead-only" id="add-task-btn">+ Thêm văn bản</button>
+      </div>
+      <div class="card table-wrap">
+        <table class="tasks-table" id="tasks-table">
+          <thead>
+            <tr>
+              <th data-sort="doc_number">Số VB</th>
+              <th data-sort="doc_date">Ngày VB</th>
+              <th data-sort="content" class="col-content">Nội dung</th>
+              <th data-sort="deadline">Thời hạn</th>
+              <th data-sort="handler1">Phụ trách 1</th>
+              <th data-sort="handler2">Phụ trách 2</th>
+              <th data-sort="progress">Tiến độ</th>
+              <th data-sort="status">Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="tasks-body"></tbody>
+        </table>
+        <p id="tasks-empty" class="muted center" hidden>Không có văn bản nào phù hợp.</p>
+      </div>
+    </section>
+
+    <!-- ---------- HỒ SƠ GIẤY PHÉP ---------- -->
+    <section id="view-licenses" class="view" hidden>
+      <div class="tiles" id="license-tiles"></div>
+      <div class="filters">
+        <input type="search" id="l-search" placeholder="Tìm tên doanh nghiệp, mã số, số hồ sơ, số giấy phép…">
+        <select id="l-status">
+          <option value="open">Đang xử lý</option>
+          <!-- các trạng thái nạp từ config -->
+          <option value="all">Tất cả</option>
+        </select>
+        <select id="l-procedure"><option value="">Mọi thủ tục</option></select>
+        <select id="l-handler"><option value="">Mọi chuyên viên</option></select>
+        <div class="spacer"></div>
+        <button class="btn ghost" id="export-licenses-btn">⬇ Xuất Excel (CSV)</button>
+        <button class="btn primary lead-only" id="add-license-btn">+ Tiếp nhận hồ sơ</button>
+      </div>
+      <div class="card table-wrap">
+        <table class="tasks-table" id="licenses-table">
+          <thead>
+            <tr>
+              <th data-sort="file_number">Số hồ sơ</th>
+              <th data-sort="company_name" class="col-content">Doanh nghiệp</th>
+              <th data-sort="procedure">Thủ tục</th>
+              <th data-sort="received_date">Ngày nhận</th>
+              <th data-sort="deadline">Hạn trả KQ</th>
+              <th data-sort="handler1">Phụ trách 1</th>
+              <th data-sort="handler2">Phụ trách 2</th>
+              <th data-sort="status">Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="licenses-body"></tbody>
+        </table>
+        <p id="licenses-empty" class="muted center" hidden>Không có hồ sơ nào phù hợp.</p>
+      </div>
+    </section>
+
+    <!-- ---------- DOANH NGHIỆP ---------- -->
+    <section id="view-companies" class="view" hidden>
+      <div class="tiles" id="company-tiles"></div>
+      <div class="filters">
+        <input type="search" id="c-search" placeholder="Tìm mã số DN, tên, số GP, người đại diện, địa chỉ, điện thoại…">
+        <select id="c-status">
+          <option value="active">Đang hoạt động</option>
+          <option value="ended">Đã chấm dứt</option>
+          <option value="all">Tất cả</option>
+        </select>
+        <select id="cf-province"><option value="">Mọi tỉnh / TP</option></select>
+        <select id="c-type"><option value="">Mọi loại hình</option></select>
+        <div class="spacer"></div>
+        <button class="btn ghost" id="export-companies-btn">⬇ Xuất Excel (CSV)</button>
+        <button class="btn ghost lead-only" id="import-companies-btn">⬆ Nhập từ Excel</button>
+        <button class="btn primary lead-only" id="add-company-btn">+ Thêm doanh nghiệp</button>
+      </div>
+      <div class="card table-wrap">
+        <table class="tasks-table" id="companies-table">
+          <thead>
+            <tr>
+              <th data-sort="tax_code">MSDN</th>
+              <th data-sort="name" class="col-content">Doanh nghiệp</th>
+              <th data-sort="license_number">Số GP</th>
+              <th data-sort="license_date">Ngày cấp</th>
+              <th data-sort="legal_rep">Người đại diện</th>
+              <th data-sort="province">Tỉnh / TP</th>
+              <th>Liên hệ</th>
+              <th data-sort="status">Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody id="companies-body"></tbody>
+        </table>
+        <p id="companies-empty" class="muted center" hidden>Chưa có doanh nghiệp nào. Trưởng phòng có thể <b>Nhập từ Excel</b> hoặc thêm thủ công.</p>
+        <p id="companies-more" class="muted center" hidden></p>
+      </div>
+    </section>
+
+    <!-- ---------- CHUYÊN VIÊN ---------- -->
+    <section id="view-staff" class="view" hidden>
+      <div class="filters">
+        <span class="muted" id="staff-summary"></span>
+        <div class="spacer"></div>
+        <button class="btn primary lead-only" id="add-staff-btn">+ Thêm chuyên viên</button>
+      </div>
+      <div class="card table-wrap">
+        <table class="staff-table">
+          <thead><tr>
+            <th>Họ tên</th><th>Email</th><th>Vai trò</th>
+            <th>PT mức 1</th><th>PT mức 2</th><th>Quá hạn</th><th>Hoàn thành tháng này</th><th></th>
+          </tr></thead>
+          <tbody id="staff-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ===================== MODAL CHI TIẾT / SỬA VĂN BẢN ===================== -->
+<dialog id="task-dialog" class="modal">
+  <form id="task-form" method="dialog">
+    <div class="modal-head">
+      <h2 id="task-dialog-title">Thêm văn bản</h2>
+      <button type="button" class="btn ghost" data-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="t-id">
+      <div class="form-grid">
+        <label>Loại việc
+          <select id="t-category" class="lead-field">
+            <option>Văn bản đến</option><option>Thẩm định</option><option>Góp ý dự thảo</option>
+            <option>Kiểm tra</option><option>Tham mưu</option><option>Báo cáo</option>
+            <option>Doanh nghiệp</option><option>Khác</option>
+          </select>
+        </label>
+        <label id="t-biz_type-wrap" hidden>Nội dung hồ sơ / việc DN<select id="t-biz_type" class="lead-field"></select></label>
+        <label id="t-tax_code-wrap" hidden>Mã số doanh nghiệp
+          <input id="t-tax_code" class="lead-field" list="t-tax_code-list" placeholder="VD: 0101234567" autocomplete="off">
+          <datalist id="t-tax_code-list"></datalist>
+          <small id="t-company-info" class="company-info" hidden></small>
+        </label>
+        <label>Số văn bản<input id="t-doc_number" class="lead-field"></label>
+        <label>Ngày văn bản<input type="date" id="t-doc_date" class="lead-field"></label>
+        <label>Ngày đến<input type="date" id="t-received_date" class="lead-field"></label>
+        <label>Cơ quan gửi<input id="t-sender" class="lead-field"></label>
+        <label>Mức độ
+          <select id="t-priority" class="lead-field">
+            <option value="normal">Bình thường</option><option value="urgent">Khẩn</option>
+          </select>
+        </label>
+        <label class="span-2">Nội dung / Trích yếu<textarea id="t-content" rows="3" required class="lead-field"></textarea></label>
+        <label>Thời hạn xử lý<input type="date" id="t-deadline" class="lead-field"></label>
+        <div class="handlers span-1">
+          <label>Phụ trách mức 1<select id="t-handler1" class="lead-field"></select></label>
+          <button type="button" class="btn ghost swap lead-field" id="swap-btn" title="Đổi mức 1 ↔ mức 2">⇅</button>
+          <label>Phụ trách mức 2<select id="t-handler2" class="lead-field"></select></label>
+        </div>
+        <label>Trạng thái
+          <select id="t-status">
+            <option value="new">Mới</option><option value="in_progress">Đang xử lý</option>
+            <option value="done">Hoàn thành</option><option value="cancelled">Hủy</option>
+          </select>
+        </label>
+        <label>Tiến độ: <b id="t-progress-val">0%</b>
+          <input type="range" id="t-progress" min="0" max="100" step="5" value="0">
+        </label>
+        <label class="span-2">Ghi chú tiến độ<textarea id="t-progress_note" rows="2" placeholder="Đã làm gì, vướng mắc gì…"></textarea></label>
+        <label class="span-2">Kết quả xử lý (số VB đi, kết luận…)<textarea id="t-result" rows="2"></textarea></label>
+      </div>
+
+      <div id="task-history" class="history" hidden>
+        <h3>Lịch sử thay đổi</h3>
+        <ul id="history-list"></ul>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn danger lead-only" id="delete-task-btn" hidden>Xóa</button>
+      <div class="spacer"></div>
+      <button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary" id="save-task-btn">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== MODAL HỒ SƠ GIẤY PHÉP ===================== -->
+<dialog id="license-dialog" class="modal">
+  <form id="license-form" method="dialog">
+    <div class="modal-head">
+      <h2 id="license-dialog-title">Tiếp nhận hồ sơ</h2>
+      <button type="button" class="btn ghost" data-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="l-id">
+      <div class="form-grid">
+        <label class="span-2">Tên doanh nghiệp<input id="l-company_name" required class="lead-field"></label>
+        <label>Mã số doanh nghiệp<input id="l-tax_code" class="lead-field"></label>
+        <label>Số hồ sơ / mã tiếp nhận<input id="l-file_number" class="lead-field"></label>
+        <label>Loại thủ tục<select id="l-procedure-f" class="lead-field"></select></label>
+        <label>Ngày nhận hồ sơ<input type="date" id="l-received_date" class="lead-field"></label>
+        <label>Hạn trả kết quả<input type="date" id="l-deadline" class="lead-field"></label>
+        <label>Trạng thái hồ sơ<select id="l-status-f"></select></label>
+        <div class="handlers">
+          <label>Phụ trách mức 1<select id="l-handler1" class="lead-field"></select></label>
+          <button type="button" class="btn ghost swap lead-field" id="l-swap-btn" title="Đổi mức 1 ↔ mức 2">⇅</button>
+          <label>Phụ trách mức 2<select id="l-handler2" class="lead-field"></select></label>
+        </div>
+        <label>Số giấy phép<input id="l-license_number" placeholder="Điền khi đã cấp"></label>
+        <label>Ngày cấp<input type="date" id="l-issued_date"></label>
+        <label class="span-2">Ghi chú<textarea id="l-note" rows="2" placeholder="Nội dung yêu cầu bổ sung, vướng mắc…"></textarea></label>
+      </div>
+      <div id="license-history" class="history" hidden>
+        <h3>Lịch sử thay đổi</h3>
+        <ul id="license-history-list"></ul>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn danger lead-only" id="delete-license-btn" hidden>Xóa</button>
+      <div class="spacer"></div>
+      <button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary" id="save-license-btn">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== MODAL DOANH NGHIỆP ===================== -->
+<dialog id="company-dialog" class="modal wide">
+  <form id="company-form" method="dialog">
+    <div class="modal-head">
+      <h2 id="company-dialog-title">Thêm doanh nghiệp</h2>
+      <button type="button" class="btn ghost" data-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="c-id">
+      <div class="form-grid">
+        <fieldset class="span-2 form-box">
+          <legend>1. Tên doanh nghiệp</legend>
+          <div class="form-grid">
+            <label>Mã số doanh nghiệp<input id="c-tax_code" class="lead-field" placeholder="10 chữ số"></label>
+            <label>Trạng thái<select id="c-status-f" class="lead-field"></select></label>
+            <label class="span-2">Tên đầy đủ<input id="c-name" required class="lead-field"></label>
+            <label>Tên viết tắt<input id="c-short_name" class="lead-field"></label>
+            <label>Tên tiếng Anh<input id="c-en_name" class="lead-field"></label>
+            <label class="span-2">Loại hình<input id="c-company_type" class="lead-field" placeholder="CTCP / TNHH"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="span-2 form-box">
+          <legend>2. Thông tin về Giấy phép</legend>
+          <div class="form-grid">
+            <label>Số GP hiện tại<input id="c-license_number" class="lead-field"></label>
+            <label>Ngày cấp GP lần đầu<input type="date" id="c-license_date" class="lead-field"></label>
+            <label>Số GP lần đầu<input id="c-first_license_number" class="lead-field"></label>
+            <label>Ngày cấp lần đầu<input type="date" id="c-first_license_date" class="lead-field"></label>
+            <label>Lần cấp đổi theo NĐ 38<input id="c-nd38_times" class="lead-field"></label>
+            <label>Ngày cấp đổi theo NĐ 38<input type="date" id="c-nd38_date" class="lead-field"></label>
+            <label>Số GP (Luật 69)<input id="c-law69_number" class="lead-field"></label>
+            <label>Ngày cấp GP theo Luật 69<input type="date" id="c-law69_date" class="lead-field"></label>
+            <label>Lần điều chỉnh thông tin<input id="c-adjust_times" class="lead-field"></label>
+            <label>Ngày điều chỉnh thông tin<input type="date" id="c-adjust_date" class="lead-field"></label>
+            <label class="span-2">DS 101<input id="c-ds101" class="lead-field"></label>
+            <fieldset class="span-2 form-box" id="c-ended-box">
+              <legend>Chấm dứt hoạt động XKLĐ</legend>
+              <div class="form-grid">
+                <label>Năm chấm dứt<input id="c-ended_year" class="lead-field"></label>
+                <label>Hình thức<input id="c-ended_type" class="lead-field" placeholder="Nộp lại / Thu hồi"></label>
+                <label>Lý do<input id="c-ended_reason" class="lead-field"></label>
+                <label>Văn bản<input id="c-ended_ref" class="lead-field"></label>
+              </div>
+            </fieldset>
+          </div>
+        </fieldset>
+
+        <fieldset class="span-2 form-box">
+          <legend>3. Địa chỉ trụ sở chính</legend>
+          <div class="form-grid">
+            <label class="span-2">Địa chỉ trụ sở chính<textarea id="c-address" rows="2" class="lead-field"></textarea></label>
+            <label>Tỉnh / Thành phố<input id="c-province" class="lead-field" list="c-province-list"></label>
+            <datalist id="c-province-list"></datalist>
+            <label>Điện thoại<input id="c-phone" class="lead-field"></label>
+            <label>Fax<input id="c-fax" class="lead-field"></label>
+            <label>Email<input id="c-email" class="lead-field"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="span-2 form-box">
+          <legend>4. Cơ sở vật chất đào tạo giáo dục định hướng</legend>
+          <div class="form-grid">
+            <label class="span-2">Tên cơ sở đào tạo (CSĐT)<textarea id="c-training_facility" rows="2" class="lead-field"></textarea></label>
+            <label class="span-2">Địa chỉ cơ sở vật chất đào tạo<textarea id="c-training_address" rows="2" class="lead-field" placeholder="Mỗi cơ sở một dòng"></textarea></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="span-2 form-box">
+          <legend>5. Vốn điều lệ</legend>
+          <div class="form-grid">
+            <label class="span-2">Vốn điều lệ (VNĐ)
+              <input id="c-charter_capital" class="lead-field" inputmode="numeric" placeholder="VD: 20000000000 hoặc 20 tỷ">
+              <small id="c-capital-hint" class="field-hint" hidden></small>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="span-2 form-box">
+          <legend>6. Ký quỹ</legend>
+          <div class="form-grid">
+            <label>Số tiền ký quỹ (VNĐ)
+              <input id="c-deposit_amount" class="lead-field" inputmode="numeric" placeholder="VD: 2000000000 hoặc 2 tỷ">
+              <small id="c-deposit-hint" class="field-hint" hidden></small>
+            </label>
+            <label>Ngày ký quỹ<input type="date" id="c-deposit_date" class="lead-field"></label>
+            <label class="span-2">Ngân hàng nhận ký quỹ<input id="c-deposit_bank" class="lead-field" placeholder="Tên ngân hàng - chi nhánh"></label>
+            <label>Số tài khoản ký quỹ<input id="c-deposit_account" class="lead-field"></label>
+            <label>Giấy xác nhận ký quỹ<input id="c-deposit_ref" class="lead-field" placeholder="Số / ngày văn bản"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="span-2 form-box">
+          <legend>7. Người đại diện theo pháp luật</legend>
+          <div class="form-grid">
+            <label class="span-2">Họ tên - chức danh<input id="c-legal_rep" class="lead-field" placeholder="VD: Nguyễn Văn An - Tổng giám đốc"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="span-2 form-box">
+          <legend>8. Danh sách nhân viên nghiệp vụ</legend>
+          <div class="form-grid">
+            <label class="span-2">Mỗi dòng một người (họ tên - chức danh - ghi chú)
+              <textarea id="c-staff_list" rows="5" class="lead-field" placeholder="Nguyễn Thị B - Chuyên viên tuyển chọn&#10;Trần Văn C - Chuyên viên thị trường Nhật Bản"></textarea>
+              <small id="c-staff-hint" class="field-hint" hidden></small>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="span-2 form-box">
+          <legend>9. Trang thông tin điện tử</legend>
+          <div class="form-grid">
+            <label class="span-2">Website<input id="c-website" class="lead-field" placeholder="VD: www.congty.vn"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="span-2 form-box">
+          <legend>10. Ghi chú khác</legend>
+          <div class="form-grid">
+            <label class="span-2"><textarea id="c-note" rows="3" class="lead-field"></textarea></label>
+          </div>
+        </fieldset>
+      </div>
+      <div id="company-related" class="history" hidden>
+        <h3>Hồ sơ & yêu cầu liên quan</h3>
+        <ul id="company-related-list"></ul>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn danger lead-only" id="delete-company-btn" hidden>Xóa</button>
+      <div class="spacer"></div>
+      <button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary lead-only" id="save-company-btn">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== MODAL NHẬP DOANH NGHIỆP TỪ EXCEL ===================== -->
+<dialog id="import-dialog" class="modal wide">
+  <div class="modal-head">
+    <h2>Nhập doanh nghiệp từ Excel</h2>
+    <button type="button" class="btn ghost" data-close>✕</button>
+  </div>
+  <div class="modal-body">
+    <div class="filters">
+      <input type="file" id="imp-file" accept=".xlsx,.xls,.csv">
+      <select id="imp-sheet" hidden></select>
+      <select id="imp-status" hidden>
+        <option value="active">Gán: Đang hoạt động</option>
+        <option value="ended">Gán: Đã chấm dứt (thu hồi / nộp lại)</option>
+      </select>
+    </div>
+    <p class="muted small" id="imp-hint">Chọn file .xlsx (tiêu đề cột ở dòng đầu). Hệ thống tự nhận diện cột theo tiêu đề; bạn có thể sửa lại ở bảng bên dưới. Dòng trùng <b>mã số DN</b> (hoặc cùng tên + số GP) sẽ được cập nhật, còn lại thêm mới.</p>
+    <div id="imp-map-wrap" class="table-wrap" hidden>
+      <table class="staff-table" id="imp-map">
+        <thead><tr><th>Cột trong file</th><th>Ví dụ dữ liệu</th><th>Nhập vào trường</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p id="imp-summary" class="muted" hidden></p>
+    <div id="imp-preview-wrap" class="table-wrap" hidden>
+      <table class="tasks-table" id="imp-preview"><thead></thead><tbody></tbody></table>
+    </div>
+    <p id="imp-error" class="error" hidden></p>
+  </div>
+  <div class="modal-foot">
+    <span class="muted small" id="imp-progress"></span>
+    <div class="spacer"></div>
+    <button type="button" class="btn ghost" data-close>Đóng</button>
+    <button type="button" class="btn primary" id="imp-run-btn" disabled>Nhập dữ liệu</button>
+  </div>
+</dialog>
+
+<!-- ===================== MODAL CHUYÊN VIÊN ===================== -->
+<dialog id="staff-dialog" class="modal small">
+  <form id="staff-form" method="dialog">
+    <div class="modal-head">
+      <h2 id="staff-dialog-title">Thêm chuyên viên</h2>
+      <button type="button" class="btn ghost" data-close>✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="s-id">
+      <label>Họ và tên<input id="s-name" required></label>
+      <label>Email<input type="email" id="s-email" required></label>
+      <label id="s-pass-wrap">Mật khẩu ban đầu<input id="s-password" minlength="6" placeholder="Ít nhất 6 ký tự"></label>
+      <label>Vai trò
+        <select id="s-role"><option value="staff">Chuyên viên</option><option value="lead">Trưởng phòng</option></select>
+      </label>
+      <label class="check"><input type="checkbox" id="s-active" checked> Đang công tác</label>
+      <p class="error" id="staff-error" hidden></p>
+    </div>
+    <div class="modal-foot">
+      <div class="spacer"></div>
+      <button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== MODAL ĐỔI MẬT KHẨU ===================== -->
+<dialog id="pass-dialog" class="modal small">
+  <form id="pass-form" method="dialog">
+    <div class="modal-head"><h2>Đổi mật khẩu</h2><button type="button" class="btn ghost" data-close>✕</button></div>
+    <div class="modal-body">
+      <label>Mật khẩu mới<input type="password" id="p-new" minlength="6" required></label>
+      <label>Nhập lại<input type="password" id="p-new2" minlength="6" required></label>
+      <p class="error" id="pass-error" hidden></p>
+    </div>
+    <div class="modal-foot"><div class="spacer"></div>
+      <button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary">Cập nhật</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+<div style="position:fixed;bottom:0;left:12px;background:#fab219;color:#0b0b0b;font-size:12px;font-weight:600;padding:2px 12px;border-radius:8px 8px 0 0;z-index:50">DÙNG THỬ – dữ liệu lưu trên máy này, chưa chia sẻ</div>
+
+<!-- CHẾ ĐỘ DÙNG THỬ TRÊN MÁY: dữ liệu lưu trong localStorage của trình duyệt này.
+     ?sample=1 nạp dữ liệu mẫu · ?reset=1 xóa hết · ?user=N xem với vai người thứ N trong danh sách -->
+<script src="js/config.js?v=11"></script>
+<script>
+  window.MOCK_USER = +(new URLSearchParams(location.search).get("user") || 1);
+  window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
+</script>
+<script src="js/demo-data.js?v=11"></script>
+<script src="js/app.js?v=11"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+</body>
+</html>
