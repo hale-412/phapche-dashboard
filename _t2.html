@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=13">
+<link rel="stylesheet" href="css/style.css?v=12">
 </head>
 <body>
 
@@ -548,9 +548,17 @@
 
 <div id="toast" class="toast" hidden></div>
 
-<script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=13"></script>
-<script src="js/app.js?v=13"></script>
+<script src="vendor/KHONG-TON-TAI.js"></script>
+<script src="js/config.js?v=12"></script>
+<script src="js/app.js?v=12"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
-</body>
+<div id="ttt">x</div>
+<script>
+setTimeout(function(){
+  var vl = document.getElementById("view-login"), er = document.getElementById("login-error");
+  document.getElementById("ttt").textContent = "manHinhDangNhapHien=" + !vl.hidden
+    + " | loiHien=" + !er.hidden + " | noiDungLoi=[" + er.textContent + "]"
+    + " | oEmail=" + (document.getElementById("login-email") ? "co" : "khong");
+}, 2500);
+</script></body>
 </html>

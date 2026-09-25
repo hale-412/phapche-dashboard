@@ -66,12 +66,24 @@
   }
 
   // ---------- Khởi tạo ----------
+  // Dù hỏng gì cũng phải hiện được màn hình đăng nhập kèm lý do — không để người dùng nhìn trang trắng
+  function fatal(msg) {
+    const box = document.getElementById("view-login");
+    if (box) box.hidden = false;
+    const err = document.getElementById("login-error");
+    if (err) { err.textContent = msg; err.hidden = false; }
+  }
+
   async function init() {
     if (!CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("YOUR-PROJECT")) {
       $("#view-login").hidden = false;
       $("#login-error").textContent = "Chưa cấu hình Supabase. Sửa file js/config.js theo hướng dẫn trong README.";
       $("#login-error").hidden = false;
       return;
+    }
+    if (!window.supabase || !window.supabase.createClient) {
+      return fatal("Không tải được thư viện kết nối (vendor/supabase-2.45.4.min.js). "
+        + "Tải lại trang bằng Ctrl+F5; nếu vẫn lỗi thì mạng đang chặn trang này.");
     }
     state.sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
     bindUI();
@@ -81,8 +93,13 @@
       if (session && !state.session) { state.session = session; await enterApp(); }
       else if (!session && state.session) { state.session = null; showLogin(); }
     });
-    const { data: { session } } = await state.sb.auth.getSession();
-    if (session) { state.session = session; await enterApp(); } else showLogin();
+    // Nếu getSession() treo (lỗi khóa của thư viện trên vài trình duyệt) thì vẫn phải hiện màn hình đăng nhập,
+    // chứ không để người dùng nhìn trang trắng. Có phiên thật thì onAuthStateChange sẽ vào app sau.
+    const timeout = new Promise((r) => setTimeout(() => r({ data: { session: null }, timedOut: true }), 8000));
+    const res = await Promise.race([state.sb.auth.getSession(), timeout]);
+    const session = res?.data?.session || null;
+    if (session) { state.session = session; await enterApp(); }
+    else { showLogin(); if (res?.timedOut) console.warn("getSession() quá hạn 8s — vẫn hiện màn hình đăng nhập"); }
   }
 
   function showLogin() {
@@ -1251,5 +1268,5 @@
     $$("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
   }
 
-  init();
+  init().catch((e) => fatal("Lỗi khởi động: " + (e && e.message ? e.message : e)));
 })();
