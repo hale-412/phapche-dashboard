@@ -7,3 +7,5 @@ supabase/.branches/
 # File lam viec noi bo - khong day len GitHub
 danh sach doanh nghiep/
 _test.html
+_t*.html
+_probe*.html
