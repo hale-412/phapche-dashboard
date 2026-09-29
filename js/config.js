@@ -131,3 +131,52 @@ window.COMPANY_FIELDS = [
   { key: "ended_reason",         label: "Lý do chấm dứt",           match: /lý do/i },
   { key: "ended_ref",            label: "Văn bản chấm dứt",         match: /văn bản|công văn/i },
 ];
+
+// ---------------------------------------------------------------
+// Hồ sơ doanh nghiệp đầy đủ — danh mục cho các bảng lịch sử
+// ---------------------------------------------------------------
+// Tình trạng chấp hành quyết định xử phạt VPHC
+window.VIOLATION_COMPLY = [
+  { value: "pending",  label: "Chưa chấp hành",        cls: "new" },
+  { value: "partial",  label: "Chấp hành một phần",    cls: "in_progress" },
+  { value: "complied", label: "Đã chấp hành xong",     cls: "done",      final: true },
+  { value: "enforced", label: "Cưỡng chế thi hành",    cls: "supplement" },
+];
+window.INSPECTION_KINDS   = ["Kiểm tra", "Thanh tra", "Giám sát", "Xác minh đơn thư"];
+window.INSPECTION_RESULTS = [
+  "Không phát hiện vi phạm",
+  "Có vi phạm - đã xử phạt VPHC",
+  "Có thiếu sót - kiến nghị khắc phục",
+  "Đang hoàn thiện kết luận",
+];
+window.FACILITY_OWN_TYPES = ["Sở hữu", "Thuê", "Liên kết", "Mượn"];
+window.REP_TITLES = ["Tổng giám đốc", "Giám đốc", "Chủ tịch HĐQT", "Chủ tịch HĐTV", "Phó tổng giám đốc", "Người được ủy quyền"];
+
+// Những trường của hồ sơ DN được ghi nhật ký khi thay đổi (khóa lấy từ COMPANY_FIELDS).
+// Bỏ trường nào khỏi danh sách này thì thay đổi của nó không vào lịch sử.
+window.TRACKED_COMPANY_FIELDS = [
+  "tax_code", "name", "short_name", "en_name", "company_type",
+  "legal_rep", "address", "province", "phone", "fax", "email", "website",
+  "training_facility", "training_address",
+  "charter_capital", "staff_list",
+  "deposit_amount", "deposit_bank", "deposit_account", "deposit_date", "deposit_ref",
+  "license_number", "license_date", "first_license_number", "first_license_date",
+  "nd38_times", "nd38_date", "law69_number", "law69_date",
+  "adjust_times", "adjust_date", "ds101",
+  "status", "ended_year", "ended_type", "ended_reason", "ended_ref",
+];
+
+// Các nhóm dùng để lọc nhanh dòng thời gian trong profile DN
+window.TIMELINE_GROUPS = [
+  { key: "all",        label: "Tất cả" },
+  { key: "doc",        label: "Văn bản đến" },
+  { key: "license",    label: "Hồ sơ giấy phép" },
+  { key: "rep",        label: "Người đại diện" },
+  { key: "facility",   label: "Cơ sở đào tạo" },
+  { key: "deposit",    label: "Ký quỹ" },
+  { key: "capital",    label: "Vốn, trụ sở" },
+  { key: "staff",      label: "Nhân viên nghiệp vụ" },
+  { key: "violation",  label: "Xử phạt VPHC" },
+  { key: "inspection", label: "Thanh tra, kiểm tra" },
+  { key: "other",      label: "Thay đổi khác" },
+];

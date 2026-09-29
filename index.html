@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=13">
+<link rel="stylesheet" href="css/style.css?v=14">
 </head>
 <body>
 
@@ -338,8 +338,19 @@
       <h2 id="company-dialog-title">Thêm doanh nghiệp</h2>
       <button type="button" class="btn ghost" data-close>✕</button>
     </div>
+    <nav class="ctabs" id="company-tabs">
+      <button type="button" class="ctab on" data-ctab="info">Hồ sơ</button>
+      <button type="button" class="ctab" data-ctab="reps">Người đại diện <span class="cnt" data-cnt="reps"></span></button>
+      <button type="button" class="ctab" data-ctab="facilities">Cơ sở đào tạo <span class="cnt" data-cnt="facilities"></span></button>
+      <button type="button" class="ctab" data-ctab="violations">Xử phạt VPHC <span class="cnt" data-cnt="violations"></span></button>
+      <button type="button" class="ctab" data-ctab="inspections">Thanh tra, kiểm tra <span class="cnt" data-cnt="inspections"></span></button>
+      <button type="button" class="ctab" data-ctab="history">Lịch sử &amp; văn bản <span class="cnt" data-cnt="history"></span></button>
+    </nav>
     <div class="modal-body">
       <input type="hidden" id="c-id">
+
+      <!-- ===== Tab 1: Hồ sơ (thông tin hiện hành) ===== -->
+      <section class="cpane" data-pane="info">
       <div class="form-grid">
         <fieldset class="span-2 form-box">
           <legend>1. Tên doanh nghiệp</legend>
@@ -453,17 +464,225 @@
             <label class="span-2"><textarea id="c-note" rows="3" class="lead-field"></textarea></label>
           </div>
         </fieldset>
+
+        <fieldset class="span-2 form-box lead-only" id="c-docref-box">
+          <legend>Căn cứ thay đổi lần này (ghi vào lịch sử)</legend>
+          <div class="form-grid">
+            <label>Theo văn bản số<input id="c-ev-doc_number" class="lead-field" list="c-ev-doc-list" placeholder="Bỏ trống nếu không theo văn bản">
+              <datalist id="c-ev-doc-list"></datalist></label>
+            <label>Ngày văn bản<input type="date" id="c-ev-doc_date" class="lead-field"></label>
+            <label class="span-2">Ghi chú căn cứ<input id="c-ev-note" class="lead-field" placeholder="VD: DN đề nghị điều chỉnh thông tin trên Giấy phép"></label>
+            <p class="span-2 muted small">Mọi trường bị sửa ở trên sẽ được ghi vào tab <b>Lịch sử &amp; văn bản</b> kèm giá trị cũ → mới và căn cứ này.</p>
+          </div>
+        </fieldset>
       </div>
-      <div id="company-related" class="history" hidden>
-        <h3>Hồ sơ & yêu cầu liên quan</h3>
-        <ul id="company-related-list"></ul>
-      </div>
+      </section>
+
+      <!-- ===== Tab 2: Người đại diện theo pháp luật ===== -->
+      <section class="cpane" data-pane="reps" hidden>
+        <div class="pane-head">
+          <p class="muted small">Một DN có thể có nhiều người đại diện. Bỏ trống <b>Ngày kết thúc</b> nghĩa là đang giữ chức.</p>
+          <button type="button" class="btn small lead-only" data-add="reps">+ Thêm người đại diện</button>
+        </div>
+        <div class="table-wrap"><table class="sub-table"><thead><tr>
+          <th>Họ và tên</th><th>Chức danh</th><th>CCCD / Hộ chiếu</th><th>Thời gian</th><th>Văn bản</th><th></th>
+        </tr></thead><tbody id="reps-body"></tbody></table></div>
+      </section>
+
+      <!-- ===== Tab 3: Cơ sở đào tạo ===== -->
+      <section class="cpane" data-pane="facilities" hidden>
+        <div class="pane-head">
+          <p class="muted small">Cơ sở vật chất đào tạo giáo dục định hướng. Bỏ trống <b>Ngày ngừng</b> nghĩa là đang sử dụng.</p>
+          <button type="button" class="btn small lead-only" data-add="facilities">+ Thêm cơ sở</button>
+        </div>
+        <div class="table-wrap"><table class="sub-table"><thead><tr>
+          <th>Tên cơ sở</th><th>Địa chỉ</th><th>Hình thức</th><th>Quy mô</th><th>Thời gian</th><th>Văn bản</th><th></th>
+        </tr></thead><tbody id="facilities-body"></tbody></table></div>
+      </section>
+
+      <!-- ===== Tab 4: Xử phạt vi phạm hành chính ===== -->
+      <section class="cpane" data-pane="violations" hidden>
+        <div class="pane-head">
+          <p class="muted small" id="violations-sum"></p>
+          <button type="button" class="btn small lead-only" data-add="violations">+ Thêm quyết định xử phạt</button>
+        </div>
+        <div class="table-wrap"><table class="sub-table"><thead><tr>
+          <th>Quyết định</th><th>Cơ quan</th><th>Hành vi vi phạm</th><th>Phạt tiền</th><th>Chấp hành</th><th></th>
+        </tr></thead><tbody id="violations-body"></tbody></table></div>
+      </section>
+
+      <!-- ===== Tab 5: Thanh tra / kiểm tra ===== -->
+      <section class="cpane" data-pane="inspections" hidden>
+        <div class="pane-head">
+          <p class="muted small">Các cuộc thanh tra, kiểm tra và kết luận.</p>
+          <button type="button" class="btn small lead-only" data-add="inspections">+ Thêm cuộc thanh tra / kiểm tra</button>
+        </div>
+        <div class="table-wrap"><table class="sub-table"><thead><tr>
+          <th>Loại</th><th>Cơ quan</th><th>Thời gian</th><th>Nội dung</th><th>Kết luận</th><th></th>
+        </tr></thead><tbody id="inspections-body"></tbody></table></div>
+      </section>
+
+      <!-- ===== Tab 6: Dòng thời gian tổng hợp ===== -->
+      <section class="cpane" data-pane="history" hidden>
+        <div class="pane-head">
+          <div class="chips" id="timeline-filter"></div>
+          <button type="button" class="btn small lead-only" data-add="events">+ Thêm mốc lịch sử</button>
+        </div>
+        <ol class="timeline" id="company-timeline"></ol>
+      </section>
     </div>
     <div class="modal-foot">
       <button type="button" class="btn danger lead-only" id="delete-company-btn" hidden>Xóa</button>
       <div class="spacer"></div>
       <button type="button" class="btn ghost" data-close>Đóng</button>
       <button type="submit" class="btn primary lead-only" id="save-company-btn">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== MODAL NGƯỜI ĐẠI DIỆN ===================== -->
+<dialog id="rep-dialog" class="modal">
+  <form id="rep-form" method="dialog">
+    <div class="modal-head"><h2 id="rep-dialog-title">Người đại diện theo pháp luật</h2>
+      <button type="button" class="btn ghost" data-close>✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="r-id"><input type="hidden" id="r-company_id">
+      <div class="form-grid">
+        <label class="span-2">Họ và tên<input id="r-full_name" required class="lead-field"></label>
+        <label>Chức danh<input id="r-title" class="lead-field" list="r-title-list"><datalist id="r-title-list"></datalist></label>
+        <label>Số CCCD / Hộ chiếu<input id="r-id_number" class="lead-field"></label>
+        <label>Ngày cấp<input type="date" id="r-id_date" class="lead-field"></label>
+        <label>Nơi cấp<input id="r-id_place" class="lead-field"></label>
+        <label>Điện thoại<input id="r-phone" class="lead-field"></label>
+        <label>Email<input id="r-email" class="lead-field"></label>
+        <label>Bắt đầu giữ chức<input type="date" id="r-from_date" class="lead-field"></label>
+        <label>Kết thúc<input type="date" id="r-to_date" class="lead-field" title="Bỏ trống nếu đang giữ chức"></label>
+        <label>Văn bản căn cứ (số)<input id="r-doc_number" class="lead-field"></label>
+        <label>Ngày văn bản<input type="date" id="r-doc_date" class="lead-field"></label>
+        <label class="span-2">Ghi chú<textarea id="r-note" rows="2" class="lead-field"></textarea></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn danger lead-only" id="delete-rep-btn" hidden>Xóa</button>
+      <div class="spacer"></div><button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary lead-only">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== MODAL CƠ SỞ ĐÀO TẠO ===================== -->
+<dialog id="facility-dialog" class="modal">
+  <form id="facility-form" method="dialog">
+    <div class="modal-head"><h2 id="facility-dialog-title">Cơ sở đào tạo</h2>
+      <button type="button" class="btn ghost" data-close>✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="f-id"><input type="hidden" id="f-company_id">
+      <div class="form-grid">
+        <label class="span-2">Tên cơ sở đào tạo<input id="f-name" required class="lead-field"></label>
+        <label class="span-2">Địa chỉ cơ sở vật chất<textarea id="f-address" rows="2" class="lead-field"></textarea></label>
+        <label>Tỉnh / Thành phố<input id="f-province" class="lead-field" list="c-province-list"></label>
+        <label>Hình thức<select id="f-own_type" class="lead-field"></select></label>
+        <label>Diện tích<input id="f-area" class="lead-field" placeholder="VD: 450 m2"></label>
+        <label>Quy mô<input id="f-capacity" class="lead-field" placeholder="VD: 100 học viên"></label>
+        <label>Bắt đầu sử dụng<input type="date" id="f-from_date" class="lead-field"></label>
+        <label>Ngừng sử dụng<input type="date" id="f-to_date" class="lead-field" title="Bỏ trống nếu đang sử dụng"></label>
+        <label>Văn bản căn cứ (số)<input id="f-doc_number" class="lead-field"></label>
+        <label>Ngày văn bản<input type="date" id="f-doc_date" class="lead-field"></label>
+        <label class="span-2">Ghi chú<textarea id="f-note" rows="2" class="lead-field"></textarea></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn danger lead-only" id="delete-facility-btn" hidden>Xóa</button>
+      <div class="spacer"></div><button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary lead-only">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== MODAL XỬ PHẠT VPHC ===================== -->
+<dialog id="violation-dialog" class="modal">
+  <form id="violation-form" method="dialog">
+    <div class="modal-head"><h2 id="violation-dialog-title">Xử phạt vi phạm hành chính</h2>
+      <button type="button" class="btn ghost" data-close>✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="v-id"><input type="hidden" id="v-company_id">
+      <div class="form-grid">
+        <label>Số quyết định<input id="v-decision_number" class="lead-field"></label>
+        <label>Ngày quyết định<input type="date" id="v-decision_date" class="lead-field"></label>
+        <label class="span-2">Cơ quan ra quyết định<input id="v-issuer" class="lead-field" placeholder="VD: Thanh tra Bộ Nội vụ"></label>
+        <label class="span-2">Hành vi vi phạm<textarea id="v-violation" rows="2" required class="lead-field"></textarea></label>
+        <label class="span-2">Điều khoản áp dụng<input id="v-legal_basis" class="lead-field" placeholder="VD: điểm a khoản 3 Điều 42 NĐ 12/2022/NĐ-CP"></label>
+        <label>Phạt tiền (VNĐ)
+          <input id="v-fine_amount" class="lead-field" inputmode="numeric" placeholder="VD: 80000000 hoặc 80 triệu">
+          <small id="v-fine-hint" class="field-hint" hidden></small>
+        </label>
+        <label>Tình trạng chấp hành<select id="v-comply_status" class="lead-field"></select></label>
+        <label class="span-2">Hình thức xử phạt bổ sung<input id="v-extra_penalty" class="lead-field" placeholder="VD: Tước quyền sử dụng Giấy phép 6 tháng"></label>
+        <label class="span-2">Biện pháp khắc phục hậu quả<textarea id="v-remedy" rows="2" class="lead-field"></textarea></label>
+        <label>Ngày chấp hành xong<input type="date" id="v-comply_date" class="lead-field"></label>
+        <label class="span-2">Ghi chú<textarea id="v-note" rows="2" class="lead-field"></textarea></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn danger lead-only" id="delete-violation-btn" hidden>Xóa</button>
+      <div class="spacer"></div><button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary lead-only">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== MODAL THANH TRA / KIỂM TRA ===================== -->
+<dialog id="inspection-dialog" class="modal">
+  <form id="inspection-form" method="dialog">
+    <div class="modal-head"><h2 id="inspection-dialog-title">Thanh tra / kiểm tra</h2>
+      <button type="button" class="btn ghost" data-close>✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="i-id"><input type="hidden" id="i-company_id">
+      <div class="form-grid">
+        <label>Loại<select id="i-kind" class="lead-field"></select></label>
+        <label>Cơ quan chủ trì<input id="i-agency" class="lead-field"></label>
+        <label>Số quyết định / kế hoạch<input id="i-decision_number" class="lead-field"></label>
+        <label>Ngày quyết định<input type="date" id="i-decision_date" class="lead-field"></label>
+        <label>Từ ngày<input type="date" id="i-from_date" class="lead-field"></label>
+        <label>Đến ngày<input type="date" id="i-to_date" class="lead-field"></label>
+        <label class="span-2">Nội dung thanh tra / kiểm tra<textarea id="i-scope" rows="2" class="lead-field"></textarea></label>
+        <label>Số kết luận<input id="i-conclusion_number" class="lead-field"></label>
+        <label>Ngày kết luận<input type="date" id="i-conclusion_date" class="lead-field"></label>
+        <label class="span-2">Kết quả<input id="i-result" class="lead-field" list="i-result-list"><datalist id="i-result-list"></datalist></label>
+        <label class="span-2">Nội dung kết luận<textarea id="i-conclusion" rows="3" class="lead-field"></textarea></label>
+        <label class="span-2">Ghi chú<textarea id="i-note" rows="2" class="lead-field"></textarea></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn danger lead-only" id="delete-inspection-btn" hidden>Xóa</button>
+      <div class="spacer"></div><button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary lead-only">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- ===================== MODAL MỐC LỊCH SỬ NHẬP TAY ===================== -->
+<dialog id="event-dialog" class="modal">
+  <form id="event-form" method="dialog">
+    <div class="modal-head"><h2 id="event-dialog-title">Mốc lịch sử</h2>
+      <button type="button" class="btn ghost" data-close>✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="e-id"><input type="hidden" id="e-company_id">
+      <div class="form-grid">
+        <label>Ngày<input type="date" id="e-event_date" required class="lead-field"></label>
+        <label>Nhóm<select id="e-field" class="lead-field"></select></label>
+        <label class="span-2">Nội dung thay đổi<input id="e-title" required class="lead-field" placeholder="VD: Đổi người đại diện từ ông A sang bà B"></label>
+        <label>Giá trị cũ<input id="e-old_value" class="lead-field"></label>
+        <label>Giá trị mới<input id="e-new_value" class="lead-field"></label>
+        <label>Theo văn bản số<input id="e-doc_number" class="lead-field"></label>
+        <label>Ngày văn bản<input type="date" id="e-doc_date" class="lead-field"></label>
+        <label class="span-2">Ghi chú<textarea id="e-note" rows="2" class="lead-field"></textarea></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn danger lead-only" id="delete-event-btn" hidden>Xóa</button>
+      <div class="spacer"></div><button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary lead-only">Lưu</button>
     </div>
   </form>
 </dialog>
@@ -549,8 +768,8 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=13"></script>
-<script src="js/app.js?v=13"></script>
+<script src="js/config.js?v=14"></script>
+<script src="js/app.js?v=14"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>

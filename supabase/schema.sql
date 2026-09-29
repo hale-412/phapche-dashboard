@@ -654,3 +654,163 @@ where u.status not in ('done','rejected')
 --   Authentication > Users > Add user  -> tạo tài khoản Trưởng phòng
 --   rồi chạy:  update public.profiles set role='lead' where email='EMAIL_TRUONG_PHONG';
 -- =====================================================================
+
+-- =====================================================================
+-- 9. HỒ SƠ DOANH NGHIỆP ĐẦY ĐỦ — các bảng lịch sử để tra cứu
+--    Chạy lại được nhiều lần (create if not exists / drop policy if exists)
+-- =====================================================================
+
+-- Hàm dùng chung cho các bảng con của doanh nghiệp
+create or replace function public.company_child_before_write()
+returns trigger language plpgsql security definer set search_path = public as $$
+begin
+  new.updated_at := now();
+  if tg_op = 'INSERT' then new.created_by := coalesce(new.created_by, auth.uid()); end if;
+  return new;
+end $$;
+
+-- ---------------------------------------------------------------
+-- 9.1 Người đại diện theo pháp luật (một DN có thể có nhiều người)
+-- ---------------------------------------------------------------
+create table if not exists public.company_reps (
+  id          bigint generated always as identity primary key,
+  company_id  bigint not null references public.companies(id) on delete cascade,
+  full_name   text not null,                 -- Họ và tên
+  title       text,                          -- Chức danh (Tổng giám đốc, Giám đốc…)
+  id_number   text,                          -- Số CCCD / hộ chiếu
+  id_date     date,                          -- Ngày cấp
+  id_place    text,                          -- Nơi cấp
+  phone       text,
+  email       text,
+  from_date   date,                          -- Bắt đầu giữ chức
+  to_date     date,                          -- Kết thúc (trống = đang giữ chức)
+  doc_number  text,                          -- Văn bản căn cứ (số)
+  doc_date    date,                          -- Văn bản căn cứ (ngày)
+  note        text,
+  created_by  uuid references public.profiles(id),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists company_reps_idx on public.company_reps(company_id);
+
+-- ---------------------------------------------------------------
+-- 9.2 Cơ sở đào tạo / cơ sở vật chất (một DN có thể có nhiều cơ sở)
+-- ---------------------------------------------------------------
+create table if not exists public.company_facilities (
+  id          bigint generated always as identity primary key,
+  company_id  bigint not null references public.companies(id) on delete cascade,
+  name        text not null,                 -- Tên cơ sở đào tạo
+  address     text,                          -- Địa chỉ cơ sở vật chất
+  province    text,
+  own_type    text,                          -- Sở hữu / Thuê / Liên kết
+  area        text,                          -- Diện tích
+  capacity    text,                          -- Quy mô (số học viên)
+  from_date   date,                          -- Bắt đầu sử dụng
+  to_date     date,                          -- Ngừng sử dụng (trống = đang dùng)
+  doc_number  text,
+  doc_date    date,
+  note        text,
+  created_by  uuid references public.profiles(id),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists company_facilities_idx on public.company_facilities(company_id);
+
+-- ---------------------------------------------------------------
+-- 9.3 Xử phạt vi phạm hành chính
+-- ---------------------------------------------------------------
+create table if not exists public.company_violations (
+  id              bigint generated always as identity primary key,
+  company_id      bigint not null references public.companies(id) on delete cascade,
+  decision_number text,                      -- Số quyết định xử phạt
+  decision_date   date,                      -- Ngày ra quyết định
+  issuer          text,                      -- Cơ quan ra quyết định
+  violation       text not null,             -- Hành vi vi phạm
+  legal_basis     text,                      -- Điều khoản áp dụng
+  fine_amount     bigint,                    -- Mức phạt tiền (VNĐ)
+  extra_penalty   text,                      -- Hình thức xử phạt bổ sung (tước quyền sử dụng GP…)
+  remedy          text,                      -- Biện pháp khắc phục hậu quả
+  comply_status   text not null default 'pending'
+                  check (comply_status in ('pending','partial','complied','enforced')),
+  comply_date     date,                      -- Ngày chấp hành xong
+  note            text,
+  created_by      uuid references public.profiles(id),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create index if not exists company_violations_idx on public.company_violations(company_id);
+
+-- ---------------------------------------------------------------
+-- 9.4 Thanh tra / kiểm tra
+-- ---------------------------------------------------------------
+create table if not exists public.company_inspections (
+  id                bigint generated always as identity primary key,
+  company_id        bigint not null references public.companies(id) on delete cascade,
+  kind              text not null default 'Kiểm tra',  -- Thanh tra / Kiểm tra
+  decision_number   text,                    -- Số QĐ thanh tra / kế hoạch kiểm tra
+  decision_date     date,
+  agency            text,                    -- Cơ quan chủ trì
+  from_date         date,                    -- Thời gian tiến hành
+  to_date           date,
+  scope             text,                    -- Nội dung thanh tra / kiểm tra
+  conclusion_number text,                    -- Số kết luận
+  conclusion_date   date,
+  conclusion        text,                    -- Nội dung kết luận
+  result            text,                    -- Không vi phạm / Có vi phạm / Kiến nghị khắc phục
+  note              text,
+  created_by        uuid references public.profiles(id),
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+create index if not exists company_inspections_idx on public.company_inspections(company_id);
+
+-- ---------------------------------------------------------------
+-- 9.5 Nhật ký thay đổi thông tin DN (tự động khi sửa hồ sơ + mốc nhập tay)
+-- ---------------------------------------------------------------
+create table if not exists public.company_events (
+  id          bigint generated always as identity primary key,
+  company_id  bigint not null references public.companies(id) on delete cascade,
+  event_date  date not null default current_date,
+  kind        text not null default 'change' check (kind in ('change','manual')),
+  field       text,                          -- khóa trường bị đổi (legal_rep, charter_capital…)
+  field_label text,                          -- nhãn tiếng Việt để hiển thị
+  old_value   text,
+  new_value   text,
+  title       text,                          -- tiêu đề (dùng cho mốc nhập tay)
+  doc_number  text,                          -- Theo văn bản số
+  doc_date    date,
+  task_id     bigint references public.tasks(id) on delete set null,
+  source      text not null default 'auto' check (source in ('auto','manual','import')),
+  note        text,
+  created_by  uuid references public.profiles(id),
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create index if not exists company_events_idx on public.company_events(company_id, event_date desc);
+
+-- ---------------------------------------------------------------
+-- 9.6 Trigger + RLS cho cả 5 bảng
+--     Ghi: chỉ Trưởng phòng (giống bảng companies).
+--     Muốn cho chuyên viên nhập: đổi public.is_lead() thành true ở 3 policy write.
+-- ---------------------------------------------------------------
+do $do$
+declare
+  tb text;
+  tbs text[] := array['company_reps','company_facilities','company_violations',
+                      'company_inspections','company_events'];
+begin
+  foreach tb in array tbs
+  loop
+    execute format('drop trigger if exists %1$s_before_write on public.%1$I', tb);
+    execute format('create trigger %1$s_before_write before insert or update on public.%1$I for each row execute function public.company_child_before_write()', tb);
+    execute format('alter table public.%I enable row level security', tb);
+    execute format('drop policy if exists "%1$s_select" on public.%1$I', tb);
+    execute format('create policy "%1$s_select" on public.%1$I for select to authenticated using (true)', tb);
+    execute format('drop policy if exists "%1$s_insert" on public.%1$I', tb);
+    execute format('create policy "%1$s_insert" on public.%1$I for insert to authenticated with check (public.is_lead())', tb);
+    execute format('drop policy if exists "%1$s_update" on public.%1$I', tb);
+    execute format('create policy "%1$s_update" on public.%1$I for update to authenticated using (public.is_lead())', tb);
+    execute format('drop policy if exists "%1$s_delete" on public.%1$I', tb);
+    execute format('create policy "%1$s_delete" on public.%1$I for delete to authenticated using (public.is_lead())', tb);
+  end loop;
+end $do$;

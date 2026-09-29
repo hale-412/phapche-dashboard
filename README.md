@@ -32,6 +32,10 @@ Mở `demo.html` — dữ liệu lưu trong trình duyệt của máy bạn (kh�
 3. Đợi ~1 phút cho dự án khởi tạo.
 4. Menu trái **SQL Editor** → **New query** → dán toàn bộ nội dung file `supabase/schema.sql` → **Run**.
    Phải thấy `Success. No rows returned`.
+   > **Khi nâng cấp phần mềm:** chạy lại đúng file này trong SQL Editor. File được viết để chạy lại
+   > nhiều lần mà không mất dữ liệu (`create table if not exists`, `add column if not exists`,
+   > `drop policy if exists`). Mục **9** tạo 5 bảng lịch sử của hồ sơ doanh nghiệp
+   > (người đại diện, cơ sở đào tạo, xử phạt VPHC, thanh tra/kiểm tra, nhật ký thay đổi).
 5. Menu trái **Authentication → Providers → Email**: **tắt** *Confirm email* (để Trưởng phòng tạo tài
    khoản cho chuyên viên là dùng được ngay, không cần bấm link xác nhận). Bấm **Save**.
 6. **Authentication → Users → Add user → Create new user**: nhập email + mật khẩu của Trưởng phòng,
