@@ -29,6 +29,7 @@ window.BIZ_TASK_TYPES = [
   "Hồ sơ cấp lại",
   "Hồ sơ điều chỉnh thông tin trên Giấy phép",
   "Nộp lại Giấy phép",
+  "Đề nghị tất toán tài khoản ký quỹ",
 ];
 
 // Module Cập nhật thông tin doanh nghiệp
