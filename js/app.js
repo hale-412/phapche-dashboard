@@ -30,6 +30,10 @@
     usort: { key: "deadline", dir: "asc" },
     csort: { key: "name", dir: "asc" },
     view: "overview",
+    // Hồ sơ doanh nghiệp đang mở + 5 bảng con của nó (nạp riêng khi mở hồ sơ)
+    cur: null,
+    sub: { reps: [], facilities: [], violations: [], inspections: [], events: [] },
+    tfilter: "all",
   };
 
   // ---------- Helpers ----------
@@ -697,12 +701,18 @@
     $("#save-company-btn").hidden = !canEdit;
     $("#delete-company-btn").hidden = !(canEdit && c);
 
-    const rel = c ? state.licenses.filter((x) => x.tax_code && x.tax_code === c.tax_code).map((x) => ({ d: x.received_date, html: `<span class="tag license">Hồ sơ GP</span> ${esc(x.procedure)}${x.file_number ? " · " + esc(x.file_number) : ""} · <span class="tag ${LSTAT_MAP[x.status]?.cls || "new"}">${esc(statusLabel(x))}</span>`, kind: "license", id: x.id }))
-      .concat(state.updates.filter((x) => x.tax_code && x.tax_code === c.tax_code).map((x) => ({ d: x.received_date, html: `<span class="tag update">Cập nhật TTDN</span> ${esc(x.update_type)} · <span class="tag ${USTAT_MAP[x.status]?.cls || "new"}">${esc(statusLabel(x))}</span>`, kind: "update", id: x.id })))
-      .sort((a, b) => (b.d || "").localeCompare(a.d || "")) : [];
-    $("#company-related").hidden = !c;
-    $("#company-related-list").innerHTML = rel.map((r) => `<li><span class="when">${fmtDate(r.d)}</span><span class="${r.kind === "license" ? "list-item-link" : ""}" data-kind="${r.kind}" data-rel="${r.id}" style="cursor:${r.kind === "license" ? "pointer" : "default"}">${r.html}</span></li>`).join("") || `<li class="muted">Chưa có hồ sơ / yêu cầu nào gắn với mã số DN này</li>`;
+    // Các tab lịch sử chỉ có nghĩa với doanh nghiệp đã lưu
+    state.cur = c;
+    state.sub = { reps: [], facilities: [], violations: [], inspections: [], events: [] };
+    state.tfilter = "all";
+    $$("#company-tabs .ctab").forEach((b) => (b.hidden = !c && b.dataset.ctab !== "info"));
+    $("#c-docref-box").hidden = !(c && canEdit);
+    ["c-ev-doc_number", "c-ev-doc_date", "c-ev-note"].forEach((k) => ($("#" + k).value = ""));
+    fillEventDocList(c);
+    showCompanyTab("info");
+    renderCompanyPanes();
     dlg.showModal();
+    if (c) loadCompanySubs(c.id);
   }
 
   function companyPayload() {
@@ -736,19 +746,33 @@
     const id = $("#c-id").value;
     const payload = companyPayload();
     if (payload.tax_code && state.companies.some((x) => x.tax_code === payload.tax_code && String(x.id) !== id)) { toast("Mã số DN này đã có trong danh sách", true); return; }
+    // Chụp bản sao trước khi lưu — không giữ tham chiếu, vì dòng dữ liệu có thể bị ghi đè ngay khi lưu
+    const found = id ? state.companies.find((x) => String(x.id) === id) : null;
+    const before = found ? { ...found } : null;
     $("#save-company-btn").disabled = true;
-    const q = id ? state.sb.from("companies").update(payload).eq("id", id) : state.sb.from("companies").insert(payload);
-    const { error } = await q;
+    const q = id
+      ? state.sb.from("companies").update(payload).eq("id", id).select("id").single()
+      : state.sb.from("companies").insert(payload).select("id").single();
+    const { data, error } = await q;
     $("#save-company-btn").disabled = false;
     if (error) { toast(error.message, true); return; }
-    toast(id ? "Đã lưu" : "Đã thêm doanh nghiệp");
+    // Ghi nhật ký thay đổi kèm căn cứ (văn bản đến) để tra cứu về sau
+    const newId = data?.id || id;
+    const ref = docRef();
+    let n = 0;
+    if (id) n = await logCompanyChanges(newId, before, payload, ref);
+    else if (newId) await state.sb.from("company_events").insert({
+      company_id: newId, event_date: ref.doc_date || todayISO(), kind: "manual", source: "manual",
+      field: "other", title: "Tạo hồ sơ doanh nghiệp", doc_number: ref.doc_number, doc_date: ref.doc_date, note: ref.note,
+    });
+    toast(id ? (n ? `Đã lưu · ghi ${n} thay đổi vào lịch sử` : "Đã lưu") : "Đã thêm doanh nghiệp");
     $("#company-dialog").close();
     await loadAll();
   }
 
   async function deleteCompany() {
     const id = $("#c-id").value;
-    if (!id || !confirm("Xóa doanh nghiệp này khỏi danh sách? Hồ sơ giấy phép / yêu cầu cập nhật đã có không bị xóa.")) return;
+    if (!id || !confirm("Xóa doanh nghiệp này khỏi danh sách?\n\nToàn bộ lịch sử của hồ sơ (người đại diện, cơ sở đào tạo, xử phạt VPHC, thanh tra/kiểm tra, nhật ký thay đổi) sẽ bị xóa theo và KHÔNG khôi phục được.\nHồ sơ giấy phép và văn bản đã có không bị xóa.")) return;
     const { error } = await state.sb.from("companies").delete().eq("id", id);
     if (error) { toast(error.message, true); return; }
     toast("Đã xóa"); $("#company-dialog").close(); await loadAll();
@@ -1233,11 +1257,7 @@
     ["#c-charter_capital", "#c-deposit_amount", "#c-staff_list"].forEach((sel) => $(sel).addEventListener("input", syncCompanyHints));
     $("#company-form").addEventListener("submit", saveCompany);
     $("#delete-company-btn").addEventListener("click", deleteCompany);
-    $("#company-related-list").addEventListener("click", (e) => {
-      const el = e.target.closest("[data-rel]"); if (!el) return;
-      $("#company-dialog").close();
-      if (el.dataset.kind === "license") openLicense(+el.dataset.rel);
-    });
+    wireCompanyProfile();
     $("#import-companies-btn").addEventListener("click", () => openImport("companies"));
     $("#imp-file").addEventListener("change", importFileChosen);
     $("#imp-sheet").addEventListener("change", loadSheet);
@@ -1268,5 +1288,367 @@
     $$("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
   }
 
+  // =================================================================
+  // HỒ SƠ DOANH NGHIỆP ĐẦY ĐỦ — các tab lịch sử
+  // =================================================================
+  const VCOMPLY = window.VIOLATION_COMPLY || [];
+  const VCOMPLY_MAP = Object.fromEntries(VCOMPLY.map((s) => [s.value, s]));
+  const INSPECTION_KINDS = window.INSPECTION_KINDS || [];
+  const INSPECTION_RESULTS = window.INSPECTION_RESULTS || [];
+  const FACILITY_OWN_TYPES = window.FACILITY_OWN_TYPES || [];
+  const REP_TITLES = window.REP_TITLES || [];
+  const TRACKED = window.TRACKED_COMPANY_FIELDS || [];
+  const TGROUPS = window.TIMELINE_GROUPS || [];
+  const CF_MAP = Object.fromEntries(CFIELDS.map((f) => [f.key, f]));
+
+  // Cấu hình 5 bảng con: trường nào là chữ / ngày / số, để đọc và ghi form
+  const SUBS = {
+    reps: {
+      table: "company_reps", dlg: "#rep-dialog", form: "#rep-form", pre: "r-", del: "#delete-rep-btn",
+      title: "#rep-dialog-title", head: "Người đại diện theo pháp luật", body: "#reps-body",
+      text: ["full_name", "title", "id_number", "id_place", "phone", "email", "doc_number", "note"],
+      date: ["id_date", "from_date", "to_date", "doc_date"], num: [],
+      order: (a, b) => (b.from_date || "").localeCompare(a.from_date || ""),
+    },
+    facilities: {
+      table: "company_facilities", dlg: "#facility-dialog", form: "#facility-form", pre: "f-", del: "#delete-facility-btn",
+      title: "#facility-dialog-title", head: "Cơ sở đào tạo", body: "#facilities-body",
+      text: ["name", "address", "province", "own_type", "area", "capacity", "doc_number", "note"],
+      date: ["from_date", "to_date", "doc_date"], num: [],
+      order: (a, b) => (b.from_date || "").localeCompare(a.from_date || ""),
+    },
+    violations: {
+      table: "company_violations", dlg: "#violation-dialog", form: "#violation-form", pre: "v-", del: "#delete-violation-btn",
+      title: "#violation-dialog-title", head: "Xử phạt vi phạm hành chính", body: "#violations-body",
+      text: ["decision_number", "issuer", "violation", "legal_basis", "extra_penalty", "remedy", "comply_status", "note"],
+      date: ["decision_date", "comply_date"], num: ["fine_amount"],
+      order: (a, b) => (b.decision_date || "").localeCompare(a.decision_date || ""),
+    },
+    inspections: {
+      table: "company_inspections", dlg: "#inspection-dialog", form: "#inspection-form", pre: "i-", del: "#delete-inspection-btn",
+      title: "#inspection-dialog-title", head: "Thanh tra / kiểm tra", body: "#inspections-body",
+      text: ["kind", "decision_number", "agency", "scope", "conclusion_number", "conclusion", "result", "note"],
+      date: ["decision_date", "from_date", "to_date", "conclusion_date"], num: [],
+      order: (a, b) => (b.from_date || b.decision_date || "").localeCompare(a.from_date || a.decision_date || ""),
+    },
+    events: {
+      table: "company_events", dlg: "#event-dialog", form: "#event-form", pre: "e-", del: "#delete-event-btn",
+      title: "#event-dialog-title", head: "Mốc lịch sử", body: null,
+      text: ["field", "title", "old_value", "new_value", "doc_number", "note"],
+      date: ["event_date", "doc_date"], num: [],
+      order: (a, b) => (b.event_date || "").localeCompare(a.event_date || ""),
+      extra: { kind: "manual", source: "manual" },
+    },
+  };
+
+  // Trường hồ sơ DN thuộc nhóm nào trên dòng thời gian
+  function groupOfField(k) {
+    if (!k) return "other";
+    if (/^deposit_/.test(k)) return "deposit";
+    if (k === "legal_rep") return "rep";
+    if (/^training_/.test(k)) return "facility";
+    if (k === "staff_list") return "staff";
+    if (k === "charter_capital" || k === "address" || k === "province") return "capital";
+    if (/license|nd38|law69|adjust|ds101|ended/.test(k)) return "license";
+    return "other";
+  }
+
+  const subFields = (s) => s.text.concat(s.date, s.num);
+  const valOf = (c, k) => { const el = $("#" + c.pre + k); return el ? el.value : ""; };
+
+  // ---------- Mở / đóng tab trong hồ sơ DN ----------
+  function showCompanyTab(name) {
+    $$("#company-tabs .ctab").forEach((b) => b.classList.toggle("on", b.dataset.ctab === name));
+    $$("#company-dialog .cpane").forEach((p) => (p.hidden = p.dataset.pane !== name));
+  }
+
+  // ---------- Nạp dữ liệu 5 bảng con của 1 doanh nghiệp ----------
+  async function loadCompanySubs(companyId) {
+    const names = Object.keys(SUBS);
+    const res = await Promise.all(names.map((n) => state.sb.from(SUBS[n].table).select("*").eq("company_id", companyId)));
+    names.forEach((n, i) => {
+      if (res[i].error) { toast(res[i].error.message, true); return; }
+      state.sub[n] = (res[i].data || []).sort(SUBS[n].order);
+    });
+    if (state.cur && state.cur.id === companyId) renderCompanyPanes();
+  }
+
+  // ---------- Vẽ lại toàn bộ các tab lịch sử ----------
+  function renderCompanyPanes() {
+    renderReps(); renderFacilities(); renderViolations(); renderInspections(); renderTimeline();
+    const canEdit = isLead();
+    $$("#company-dialog [data-add]").forEach((b) => (b.hidden = !canEdit || !state.cur));
+  }
+
+  const badgeActive = (to) => (to ? `<span class="tag cancelled">Đã kết thúc</span>` : `<span class="tag done">Đang hiệu lực</span>`);
+  const period = (a, b) => `${fmtDate(a)} → ${b ? fmtDate(b) : "nay"}`;
+  const docCell = (n, d) => (n || d ? esc(n || "") + (d ? `<div class="sender">${fmtDate(d)}</div>` : "") : "—");
+  const rowBtns = (kind, id) => `<td class="right"><button type="button" class="btn ghost small" data-sub="${kind}" data-sub-id="${id}">Sửa</button></td>`;
+  const emptyRow = (cols, msg) => `<tr><td colspan="${cols}" class="muted center">${msg}</td></tr>`;
+
+  function setCount(name, n) {
+    const el = $(`#company-tabs [data-cnt="${name}"]`);
+    if (el) el.textContent = n ? n : "";
+  }
+
+  function renderReps() {
+    const rows = state.sub.reps;
+    setCount("reps", rows.length);
+    $("#reps-body").innerHTML = rows.length ? rows.map((r) => `<tr>
+      <td><b>${esc(r.full_name)}</b> ${badgeActive(r.to_date)}${r.phone || r.email ? `<div class="sender">${esc([r.phone, r.email].filter(Boolean).join(" · "))}</div>` : ""}</td>
+      <td>${esc(r.title || "—")}</td>
+      <td>${esc(r.id_number || "—")}${r.id_date ? `<div class="sender">${fmtDate(r.id_date)}${r.id_place ? " · " + esc(r.id_place) : ""}</div>` : ""}</td>
+      <td>${period(r.from_date, r.to_date)}</td>
+      <td>${docCell(r.doc_number, r.doc_date)}</td>
+      ${rowBtns("reps", r.id)}</tr>`).join("")
+      : emptyRow(6, "Chưa có người đại diện nào được ghi nhận");
+  }
+
+  function renderFacilities() {
+    const rows = state.sub.facilities;
+    setCount("facilities", rows.length);
+    $("#facilities-body").innerHTML = rows.length ? rows.map((f) => `<tr>
+      <td><b>${esc(f.name)}</b> ${badgeActive(f.to_date)}</td>
+      <td>${esc(f.address || "—")}${f.province ? `<div class="sender">${esc(f.province)}</div>` : ""}</td>
+      <td>${esc(f.own_type || "—")}</td>
+      <td>${esc([f.area, f.capacity].filter(Boolean).join(" · ") || "—")}</td>
+      <td>${period(f.from_date, f.to_date)}</td>
+      <td>${docCell(f.doc_number, f.doc_date)}</td>
+      ${rowBtns("facilities", f.id)}</tr>`).join("")
+      : emptyRow(7, "Chưa có cơ sở đào tạo nào được ghi nhận");
+  }
+
+  function renderViolations() {
+    const rows = state.sub.violations;
+    setCount("violations", rows.length);
+    const total = rows.reduce((s, v) => s + (v.fine_amount || 0), 0);
+    const open = rows.filter((v) => !VCOMPLY_MAP[v.comply_status]?.final).length;
+    $("#violations-sum").innerHTML = rows.length
+      ? `${rows.length} quyết định · tổng phạt tiền <b>${esc(fmtVnd(total))}</b>${open ? ` · <b class="crit">${open} chưa chấp hành xong</b>` : " · đã chấp hành xong"}`
+      : "Chưa ghi nhận vi phạm hành chính nào.";
+    $("#violations-body").innerHTML = rows.length ? rows.map((v) => {
+      const st = VCOMPLY_MAP[v.comply_status] || VCOMPLY[0];
+      return `<tr>
+      <td><b>${esc(v.decision_number || "—")}</b><div class="sender">${fmtDate(v.decision_date)}</div></td>
+      <td>${esc(v.issuer || "—")}</td>
+      <td class="content-cell">${esc(v.violation)}${v.legal_basis ? `<div class="sender">${esc(v.legal_basis)}</div>` : ""}${v.extra_penalty ? `<div class="sender">Bổ sung: ${esc(v.extra_penalty)}</div>` : ""}${v.remedy ? `<div class="sender">Khắc phục: ${esc(v.remedy)}</div>` : ""}</td>
+      <td>${v.fine_amount ? esc(fmtVnd(v.fine_amount)) : "—"}</td>
+      <td><span class="tag ${st?.cls || "new"}">${esc(st?.label || v.comply_status)}</span>${v.comply_date ? `<div class="sender">${fmtDate(v.comply_date)}</div>` : ""}</td>
+      ${rowBtns("violations", v.id)}</tr>`;
+    }).join("") : emptyRow(6, "Chưa có quyết định xử phạt nào");
+  }
+
+  function renderInspections() {
+    const rows = state.sub.inspections;
+    setCount("inspections", rows.length);
+    $("#inspections-body").innerHTML = rows.length ? rows.map((i) => `<tr>
+      <td><b>${esc(i.kind || "—")}</b>${i.decision_number ? `<div class="sender">${esc(i.decision_number)}</div>` : ""}</td>
+      <td>${esc(i.agency || "—")}</td>
+      <td>${i.from_date || i.to_date ? period(i.from_date, i.to_date) : fmtDate(i.decision_date)}</td>
+      <td class="content-cell">${esc(i.scope || "—")}</td>
+      <td class="content-cell">${esc(i.result || "—")}${i.conclusion_number ? `<div class="sender">KL ${esc(i.conclusion_number)} ngày ${fmtDate(i.conclusion_date)}</div>` : ""}${i.conclusion ? `<div class="sender">${esc(i.conclusion)}</div>` : ""}</td>
+      ${rowBtns("inspections", i.id)}</tr>`).join("")
+      : emptyRow(6, "Chưa có cuộc thanh tra / kiểm tra nào");
+  }
+
+  // ---------- Dòng thời gian tổng hợp ----------
+  function timelineItems() {
+    const c = state.cur;
+    if (!c) return [];
+    const out = [];
+    state.sub.events.forEach((e) => {
+      const g = e.kind === "manual" ? (e.field || "other") : groupOfField(e.field);
+      const what = e.kind === "manual" ? esc(e.title || "") : `<b>${esc(e.field_label || e.field || "")}</b>`;
+      const diff = e.old_value || e.new_value
+        ? `<div class="diff"><span class="old">${esc(e.old_value || "(trống)")}</span> → <span class="new">${esc(e.new_value || "(trống)")}</span></div>` : "";
+      out.push({ d: e.event_date, g, tag: e.kind === "manual" ? "Mốc lịch sử" : "Thay đổi",
+        cls: "update", html: what + diff, doc: e.doc_number, docd: e.doc_date, note: e.note,
+        who: e.created_by, at: e.created_at, edit: e.kind === "manual" ? { kind: "events", id: e.id } : null });
+    });
+    state.sub.violations.forEach((v) => out.push({ d: v.decision_date, g: "violation", tag: "Xử phạt VPHC", cls: "cancelled",
+      html: `${esc(v.violation)}${v.fine_amount ? ` — phạt <b>${esc(fmtVnd(v.fine_amount))}</b>` : ""}`,
+      doc: v.decision_number, docd: v.decision_date, note: v.issuer, edit: { kind: "violations", id: v.id } }));
+    state.sub.inspections.forEach((i) => out.push({ d: i.from_date || i.decision_date, g: "inspection", tag: i.kind || "Kiểm tra", cls: "supplement",
+      html: `${esc(i.scope || i.kind || "")}${i.result ? ` — ${esc(i.result)}` : ""}`,
+      doc: i.decision_number, docd: i.decision_date, note: i.agency, edit: { kind: "inspections", id: i.id } }));
+    state.sub.reps.forEach((r) => {
+      out.push({ d: r.from_date, g: "rep", tag: "Người đại diện", cls: "done",
+        html: `Bắt đầu: <b>${esc(r.full_name)}</b>${r.title ? " - " + esc(r.title) : ""}`,
+        doc: r.doc_number, docd: r.doc_date, edit: { kind: "reps", id: r.id } });
+      if (r.to_date) out.push({ d: r.to_date, g: "rep", tag: "Người đại diện", cls: "cancelled",
+        html: `Kết thúc: <b>${esc(r.full_name)}</b>`, doc: r.doc_number, docd: r.doc_date, edit: { kind: "reps", id: r.id } });
+    });
+    state.sub.facilities.forEach((f) => {
+      out.push({ d: f.from_date, g: "facility", tag: "Cơ sở đào tạo", cls: "done",
+        html: `Đưa vào sử dụng: <b>${esc(f.name)}</b>`, doc: f.doc_number, docd: f.doc_date, edit: { kind: "facilities", id: f.id } });
+      if (f.to_date) out.push({ d: f.to_date, g: "facility", tag: "Cơ sở đào tạo", cls: "cancelled",
+        html: `Ngừng sử dụng: <b>${esc(f.name)}</b>`, doc: f.doc_number, docd: f.doc_date, edit: { kind: "facilities", id: f.id } });
+    });
+    if (c.tax_code) {
+      state.tasks.filter((t) => t.tax_code === c.tax_code).forEach((t) => out.push({
+        d: t.received_date || t.doc_date, g: "doc", tag: t.biz_type || t.category || "Văn bản đến", cls: "new",
+        html: esc(t.content), doc: t.doc_number, docd: t.doc_date, note: t.sender,
+        extra: `<span class="tag ${t.status}">${esc(statusLabel(t))}</span>${t.result ? " · " + esc(t.result) : ""}`,
+        open: { kind: "task", id: t.id },
+      }));
+      state.licenses.filter((l) => l.tax_code === c.tax_code).forEach((l) => out.push({
+        d: l.received_date, g: "license", tag: "Hồ sơ giấy phép", cls: "license",
+        html: `${esc(l.procedure)}${l.license_number ? ` — GP số <b>${esc(l.license_number)}</b>` : ""}`,
+        doc: l.file_number, docd: l.issued_date,
+        extra: `<span class="tag ${LSTAT_MAP[l.status]?.cls || "new"}">${esc(statusLabel(l))}</span>`,
+        open: { kind: "license", id: l.id },
+      }));
+    }
+    return out.filter((x) => x.d || x.html).sort((a, b) => (b.d || "").localeCompare(a.d || ""));
+  }
+
+  function renderTimeline() {
+    const items = timelineItems();
+    setCount("history", items.length);
+    const f = state.tfilter || "all";
+    const has = new Set(items.map((x) => x.g));
+    $("#timeline-filter").innerHTML = TGROUPS.filter((g) => g.key === "all" || has.has(g.key))
+      .map((g) => `<button type="button" class="chip-btn${g.key === f ? " on" : ""}" data-tg="${g.key}">${esc(g.label)}</button>`).join("");
+    const shown = f === "all" ? items : items.filter((x) => x.g === f);
+    $("#company-timeline").innerHTML = shown.length ? shown.map((x) => `<li class="tl-item">
+      <div class="tl-date">${fmtDate(x.d)}</div>
+      <div class="tl-body">
+        <div class="tl-top"><span class="tag ${x.cls}">${esc(x.tag)}</span>${x.extra || ""}</div>
+        <div class="tl-main">${x.html}</div>
+        ${x.doc || x.docd ? `<div class="sender">Văn bản: ${esc(x.doc || "")}${x.docd ? " ngày " + fmtDate(x.docd) : ""}</div>` : ""}
+        ${x.note ? `<div class="sender">${esc(x.note)}</div>` : ""}
+        ${x.at ? `<div class="sender">${esc(nameOf(x.who))} · ${fmtDateTime(x.at)}</div>` : ""}
+      </div>
+      <div class="tl-act">${x.open ? `<button type="button" class="btn ghost small" data-open="${x.open.kind}" data-open-id="${x.open.id}">Mở</button>`
+        : x.edit && isLead() ? `<button type="button" class="btn ghost small" data-sub="${x.edit.kind}" data-sub-id="${x.edit.id}">Sửa</button>` : ""}</div>
+    </li>`).join("") : `<li class="muted center">Chưa có dữ liệu trong nhóm này</li>`;
+  }
+
+  // ---------- Ghi nhật ký thay đổi khi lưu hồ sơ DN ----------
+  const normVal = (v) => (v === null || v === undefined || v === "" ? "" : String(v));
+  function labelOf(k) {
+    if (k === "status") return "Trạng thái";
+    return CF_MAP[k]?.label || k;
+  }
+  function docRef() {
+    return { doc_number: $("#c-ev-doc_number").value.trim() || null, doc_date: $("#c-ev-doc_date").value || null, note: $("#c-ev-note").value.trim() || null };
+  }
+  async function logCompanyChanges(companyId, before, after, ref) {
+    const rows = [];
+    TRACKED.forEach((k) => {
+      const o = normVal(before ? before[k] : ""), n = normVal(after[k]);
+      if (o === n) return;
+      rows.push({
+        company_id: companyId, event_date: ref.doc_date || todayISO(), kind: "change",
+        field: k, field_label: labelOf(k), old_value: o || null, new_value: n || null,
+        doc_number: ref.doc_number, doc_date: ref.doc_date, note: ref.note, source: "auto",
+      });
+    });
+    if (!rows.length) return 0;
+    const { error } = await state.sb.from("company_events").insert(rows);
+    if (error) { toast("Không ghi được lịch sử: " + error.message, true); return 0; }
+    return rows.length;
+  }
+
+  // Gợi ý số văn bản đã có của chính doanh nghiệp này
+  function fillEventDocList(c) {
+    const list = c && c.tax_code ? state.tasks.filter((t) => t.tax_code === c.tax_code && t.doc_number) : [];
+    $("#c-ev-doc-list").innerHTML = list.map((t) => `<option value="${esc(t.doc_number)}">${esc(t.content || "")}</option>`).join("");
+  }
+
+  // ---------- CRUD dùng chung cho 5 bảng con ----------
+  function openSub(kind, id) {
+    const s = SUBS[kind];
+    if (!state.cur) { toast("Hãy lưu hồ sơ doanh nghiệp trước", true); return; }
+    const rec = id ? state.sub[kind].find((x) => x.id === id) : null;
+    $("#" + s.pre + "id").value = rec?.id || "";
+    $("#" + s.pre + "company_id").value = state.cur.id;
+    subFields(s).forEach((k) => {
+      const el = $("#" + s.pre + k); if (!el) return;
+      let v = rec ? rec[k] : "";
+      if (v === null || v === undefined) v = "";
+      if (s.date.includes(k) && v) v = String(v).slice(0, 10);
+      el.value = v;
+    });
+    if (!rec) {
+      if (kind === "events") $("#e-event_date").value = todayISO();
+      if (kind === "violations") $("#v-comply_status").value = "pending";
+      if (kind === "inspections") $("#i-kind").value = INSPECTION_KINDS[0] || "";
+    }
+    if (kind === "violations") syncFineHint();
+    $(s.title).textContent = (rec ? "Sửa " : "Thêm ") + s.head.toLowerCase() + " — " + state.cur.name;
+    const canEdit = isLead();
+    $$(".lead-field", $(s.dlg)).forEach((el) => (el.disabled = !canEdit));
+    $$(".btn.primary", $(s.dlg)).forEach((b) => (b.hidden = !canEdit));
+    $(s.del).hidden = !(canEdit && rec);
+    $(s.dlg).showModal();
+  }
+
+  async function saveSub(kind, e) {
+    e.preventDefault();
+    const s = SUBS[kind];
+    const id = $("#" + s.pre + "id").value;
+    const p = { company_id: +$("#" + s.pre + "company_id").value };
+    s.text.forEach((k) => (p[k] = valOf(s, k).trim() || null));
+    s.date.forEach((k) => (p[k] = valOf(s, k) || null));
+    s.num.forEach((k) => (p[k] = parseVnd(valOf(s, k))));
+    Object.assign(p, s.extra || {});
+    const q = id ? state.sb.from(s.table).update(p).eq("id", id) : state.sb.from(s.table).insert(p);
+    const { error } = await q;
+    if (error) { toast(error.message, true); return; }
+    toast(id ? "Đã lưu" : "Đã thêm");
+    $(s.dlg).close();
+    await loadCompanySubs(p.company_id);
+  }
+
+  async function deleteSub(kind) {
+    const s = SUBS[kind];
+    const id = $("#" + s.pre + "id").value;
+    const cid = +$("#" + s.pre + "company_id").value;
+    if (!id || !confirm("Xóa mục này khỏi hồ sơ doanh nghiệp?")) return;
+    const { error } = await state.sb.from(s.table).delete().eq("id", id);
+    if (error) { toast(error.message, true); return; }
+    toast("Đã xóa"); $(s.dlg).close(); await loadCompanySubs(cid);
+  }
+
+  function syncFineHint() {
+    const n = parseVnd($("#v-fine_amount").value);
+    const h = $("#v-fine-hint");
+    h.textContent = n ? "= " + fmtVnd(n) : ""; h.hidden = !n;
+  }
+
+  // ---------- Nối sự kiện ----------
+  function wireCompanyProfile() {
+    // danh mục cho các hộp thoại con
+    $("#v-comply_status").innerHTML = VCOMPLY.map((s) => `<option value="${s.value}">${esc(s.label)}</option>`).join("");
+    $("#i-kind").innerHTML = INSPECTION_KINDS.map((k) => `<option>${esc(k)}</option>`).join("");
+    $("#i-result-list").innerHTML = INSPECTION_RESULTS.map((k) => `<option value="${esc(k)}"></option>`).join("");
+    $("#f-own_type").innerHTML = `<option value=""></option>` + FACILITY_OWN_TYPES.map((k) => `<option>${esc(k)}</option>`).join("");
+    $("#r-title-list").innerHTML = REP_TITLES.map((k) => `<option value="${esc(k)}"></option>`).join("");
+    $("#e-field").innerHTML = TGROUPS.filter((g) => g.key !== "all").map((g) => `<option value="${g.key}">${esc(g.label)}</option>`).join("");
+
+    $("#company-tabs").addEventListener("click", (e) => {
+      const b = e.target.closest(".ctab"); if (b) showCompanyTab(b.dataset.ctab);
+    });
+    $$("#company-dialog [data-add]").forEach((b) => b.addEventListener("click", () => openSub(b.dataset.add, null)));
+    $("#company-dialog").addEventListener("click", (e) => {
+      const s = e.target.closest("[data-sub]");
+      if (s) { openSub(s.dataset.sub, +s.dataset.subId); return; }
+      const g = e.target.closest("[data-tg]");
+      if (g) { state.tfilter = g.dataset.tg; renderTimeline(); return; }
+      const o = e.target.closest("[data-open]");
+      if (o) {
+        $("#company-dialog").close();
+        if (o.dataset.open === "license") openLicense(+o.dataset.openId);
+        else if (o.dataset.open === "task") openTask(+o.dataset.openId);
+      }
+    });
+    Object.keys(SUBS).forEach((kind) => {
+      const s = SUBS[kind];
+      $(s.form).addEventListener("submit", (e) => saveSub(kind, e));
+      $(s.del).addEventListener("click", () => deleteSub(kind));
+    });
+    $("#v-fine_amount").addEventListener("input", syncFineHint);
+  }
   init().catch((e) => fatal("Lỗi khởi động: " + (e && e.message ? e.message : e)));
 })();
