@@ -71,11 +71,6 @@ create table if not exists public.tasks (
 -- Nâng cấp DB đã tạo trước 2026-09-18 (an toàn khi chạy lại)
 alter table public.tasks add column if not exists tax_code text;
 alter table public.tasks add column if not exists biz_type text;
--- Quy loại việc cũ về nhóm "Doanh nghiệp" (an toàn khi chạy lại)
-update public.tasks set category = 'Doanh nghiệp',
-       biz_type = coalesce(biz_type, 'Cập nhật thông tin DN')
- where category = 'Cập nhật thông tin doanh nghiệp';
-
 create index if not exists tasks_deadline_idx on public.tasks(deadline);
 create index if not exists tasks_handler1_idx on public.tasks(handler1);
 create index if not exists tasks_handler2_idx on public.tasks(handler2);
@@ -115,7 +110,9 @@ begin
   new.updated_at := now();
 
   -- Chuyên viên (không phải Trưởng phòng) chỉ được sửa tiến độ/trạng thái/ghi chú/kết quả
-  if not public.is_lead() then
+  -- Chay tu SQL Editor / script nang cap thi khong co phien dang nhap (auth.uid() rong)
+  -- -> bo qua kiem tra quyen, neu khong lenh chuyen doi du lieu se bi trigger nay chan.
+  if auth.uid() is not null and not public.is_lead() then
     if new.doc_number    is distinct from old.doc_number
     or new.doc_date      is distinct from old.doc_date
     or new.received_date is distinct from old.received_date
@@ -146,6 +143,12 @@ drop trigger if exists tasks_before_write on public.tasks;
 create trigger tasks_before_write
   before insert or update on public.tasks
   for each row execute function public.tasks_before_write();
+
+-- Quy loại việc cũ về nhóm "Doanh nghiệp" (an toàn khi chạy lại)
+update public.tasks set category = 'Doanh nghiệp',
+       biz_type = coalesce(biz_type, 'Cập nhật thông tin DN')
+ where category = 'Cập nhật thông tin doanh nghiệp';
+
 
 create or replace function public.tasks_after_write()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -201,7 +204,9 @@ begin
   -- Chạy từ SQL Editor / service_role (không có phiên đăng nhập) thì bỏ qua kiểm tra,
   -- để lần đầu cài đặt còn cấp được vai Trưởng phòng đầu tiên.
   if auth.uid() is null then return new; end if;
-  if not public.is_lead() then
+  -- Chay tu SQL Editor / script nang cap thi khong co phien dang nhap (auth.uid() rong)
+  -- -> bo qua kiem tra quyen, neu khong lenh chuyen doi du lieu se bi trigger nay chan.
+  if auth.uid() is not null and not public.is_lead() then
     if new.role is distinct from old.role or new.active is distinct from old.active then
       raise exception 'Chỉ Trưởng phòng mới được đổi vai trò';
     end if;
@@ -314,7 +319,9 @@ begin
     return new;
   end if;
   -- Chuyên viên chỉ được cập nhật trạng thái, số GP, ngày cấp, ghi chú
-  if not public.is_lead() then
+  -- Chay tu SQL Editor / script nang cap thi khong co phien dang nhap (auth.uid() rong)
+  -- -> bo qua kiem tra quyen, neu khong lenh chuyen doi du lieu se bi trigger nay chan.
+  if auth.uid() is not null and not public.is_lead() then
     if new.file_number   is distinct from old.file_number
     or new.company_name  is distinct from old.company_name
     or new.tax_code      is distinct from old.tax_code
@@ -438,7 +445,9 @@ begin
     return new;
   end if;
   -- Chuyên viên chỉ được cập nhật trạng thái, kết quả, ngày hoàn thành, ghi chú
-  if not public.is_lead() then
+  -- Chay tu SQL Editor / script nang cap thi khong co phien dang nhap (auth.uid() rong)
+  -- -> bo qua kiem tra quyen, neu khong lenh chuyen doi du lieu se bi trigger nay chan.
+  if auth.uid() is not null and not public.is_lead() then
     if new.tax_code      is distinct from old.tax_code
     or new.company_name  is distinct from old.company_name
     or new.doc_number    is distinct from old.doc_number
