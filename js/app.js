@@ -668,7 +668,7 @@
   }
 
   const C_TEXT = ["tax_code", "name", "short_name", "en_name", "legal_rep", "company_type", "address", "province", "website", "phone", "fax", "email", "training_facility",
-    "training_address", "staff_list", "deposit_bank", "deposit_account", "deposit_ref",
+    "training_address", "staff_list", "markets", "deposit_bank", "deposit_account", "deposit_ref",
     "license_number", "first_license_number", "nd38_times", "law69_number", "adjust_times", "ds101", "note", "ended_year", "ended_type", "ended_reason", "ended_ref"];
   const C_DATE = ["license_date", "first_license_date", "nd38_date", "law69_date", "adjust_date", "deposit_date"];
   const C_NUM = ["charter_capital", "deposit_amount"];
@@ -705,11 +705,13 @@
     state.cur = c;
     state.sub = { reps: [], facilities: [], violations: [], inspections: [], events: [] };
     state.tfilter = "all";
-    $$("#company-tabs .ctab").forEach((b) => (b.hidden = !c && b.dataset.ctab !== "info"));
+    // Các tab cần hồ sơ đã lưu (có id) thì mới mở được
+    const NEED_ID = ["reps", "facilities", "violations", "inspections", "history"];
+    $$("#company-tabs .ctab").forEach((b) => (b.hidden = !c && NEED_ID.includes(b.dataset.ctab)));
     $("#c-docref-box").hidden = !(c && canEdit);
     ["c-ev-doc_number", "c-ev-doc_date", "c-ev-note"].forEach((k) => ($("#" + k).value = ""));
     fillEventDocList(c);
-    showCompanyTab("info");
+    showCompanyTab(c ? "overview" : "name");
     renderCompanyPanes();
     dlg.showModal();
     if (c) loadCompanySubs(c.id);
@@ -739,6 +741,10 @@
     const h2 = $("#c-staff-hint");
     h2.textContent = n ? n + " nhân viên nghiệp vụ" : "";
     h2.hidden = !n;
+    const m = countStaff($("#c-markets").value);
+    const h3 = $("#c-markets-hint");
+    h3.textContent = m ? m + " thị trường" : "";
+    h3.hidden = !m;
   }
 
   async function saveCompany(e) {
@@ -1254,7 +1260,7 @@
     $("#companies-body").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) openCompany(+tr.dataset.id); });
     $("#add-company-btn").addEventListener("click", () => openCompany(null));
     $("#export-companies-btn").addEventListener("click", exportCompaniesCSV);
-    ["#c-charter_capital", "#c-deposit_amount", "#c-staff_list"].forEach((sel) => $(sel).addEventListener("input", syncCompanyHints));
+    ["#c-charter_capital", "#c-deposit_amount", "#c-staff_list", "#c-markets"].forEach((sel) => $(sel).addEventListener("input", syncCompanyHints));
     $("#company-form").addEventListener("submit", saveCompany);
     $("#delete-company-btn").addEventListener("click", deleteCompany);
     wireCompanyProfile();
@@ -1374,8 +1380,97 @@
   }
 
   // ---------- Vẽ lại toàn bộ các tab lịch sử ----------
+  // ---------- Tab Tổng quan: thông tin hiện tại của doanh nghiệp ----------
+  const lines = (s) => String(s || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  const dash = (v) => (v === null || v === undefined || v === "" ? '<span class="muted">—</span>' : esc(v));
+  const row = (k, v) => `<div class="ov-row"><dt>${esc(k)}</dt><dd>${v}</dd></div>`;
+  const bullets = (arr) => (arr.length ? `<ul class="ov-list">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : '<span class="muted">—</span>');
+
+  function ovCard(title, tab, rowsHtml, note) {
+    return `<section class="ov-card">
+      <div class="ov-head"><h3>${esc(title)}</h3>
+        <button type="button" class="btn ghost small" data-goto="${tab}">Cập nhật ›</button></div>
+      <dl class="ov-grid">${rowsHtml}</dl>
+      ${note ? `<p class="muted small">${note}</p>` : ""}
+    </section>`;
+  }
+
+  function renderOverview() {
+    const c = state.cur;
+    const box = $("#company-overview");
+    if (!c) {
+      box.innerHTML = `<p class="muted center">Điền thông tin ở tab <b>Tên &amp; mã số</b> rồi bấm <b>Lưu</b>.
+        Sau khi lưu, các tab lịch sử (người đại diện, cơ sở đào tạo, xử phạt, thanh tra) sẽ mở ra.</p>`;
+      return;
+    }
+    const st = fmtCompanyStatus(c);
+    const reps = state.sub.reps.filter((r) => !r.to_date);
+    const facs = state.sub.facilities.filter((f) => !f.to_date);
+    const mk = lines(c.markets), staff = lines(c.staff_list);
+
+    box.innerHTML = `
+      <div class="ov-title">
+        <h3>${esc(c.name)}</h3>
+        <div class="ov-tags"><span class="tag ${st.cls}">${esc(st.label)}</span>
+          ${c.license_number ? `<span class="tag license">GP số ${esc(c.license_number)}</span>` : ""}
+          ${c.tax_code ? `<span class="chip">MSDN ${esc(c.tax_code)}</span>` : ""}</div>
+      </div>
+      <div class="ov-cards">
+      ${ovCard("Giấy phép", "license",
+        row("Số giấy phép", dash(c.license_number)) +
+        row("Ngày cấp", c.license_date ? fmtDate(c.license_date) : dash("")) +
+        row("Trạng thái", `<span class="tag ${st.cls}">${esc(st.label)}</span>`) +
+        (c.status === "ended"
+          ? row("Chấm dứt", dash([c.ended_type, c.ended_year].filter(Boolean).join(" · ")))
+          : ""))}
+
+      ${ovCard("Tên doanh nghiệp & mã số", "name",
+        row("Tên đầy đủ", dash(c.name)) +
+        row("Tên viết tắt", dash(c.short_name)) +
+        row("Tên tiếng Anh", dash(c.en_name)) +
+        row("Mã số doanh nghiệp", dash(c.tax_code)))}
+
+      ${ovCard("Địa chỉ & liên hệ", "address",
+        row("Trụ sở chính", dash(c.address)) +
+        row("Tỉnh / Thành phố", dash(c.province)) +
+        row("Điện thoại", dash(c.phone)) +
+        row("Email", dash(c.email)) +
+        row("Trang thông tin điện tử", c.website ? esc(c.website) : dash("")))}
+
+      ${ovCard("Thị trường hoạt động", "markets", row(`${mk.length ? mk.length + " thị trường" : "Thị trường"}`, bullets(mk)))}
+
+      ${ovCard("Vốn điều lệ & loại hình", "capital",
+        row("Vốn điều lệ", c.charter_capital ? `<b>${esc(fmtVnd(c.charter_capital))}</b>` : dash("")) +
+        row("Loại hình", dash(c.company_type)))}
+
+      ${ovCard("Ký quỹ", "deposit",
+        row("Ngân hàng", dash(c.deposit_bank)) +
+        row("Số tài khoản", dash(c.deposit_account)) +
+        row("Số tiền ký quỹ", c.deposit_amount ? `<b>${esc(fmtVnd(c.deposit_amount))}</b>` : dash("")) +
+        row("Ngày ký quỹ", c.deposit_date ? fmtDate(c.deposit_date) : dash("")))}
+
+      ${ovCard("Người đại diện theo pháp luật", "reps",
+        reps.length
+          ? reps.map((r) => row(r.title || "Người đại diện", `<b>${esc(r.full_name)}</b>${r.from_date ? ` <span class="muted">(từ ${fmtDate(r.from_date)})</span>` : ""}`)).join("")
+          : row("Ghi trên Giấy phép", dash(c.legal_rep)),
+        reps.length ? `${reps.length} người đang giữ chức · tổng ${state.sub.reps.length} lượt trong lịch sử`
+                    : "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép.")}
+
+      ${ovCard("Danh sách nhân viên nghiệp vụ", "staff",
+        row(staff.length ? staff.length + " người" : "Nhân viên nghiệp vụ", bullets(staff)))}
+
+      ${ovCard("Cơ sở vật chất đào tạo GDĐH", "facilities",
+        facs.length
+          ? facs.map((f) => row(f.name, dash(f.address) + (f.own_type ? ` <span class="chip">${esc(f.own_type)}</span>` : ""))).join("")
+          : row("Tên cơ sở đào tạo", dash(c.training_facility)) + row("Địa chỉ", dash(c.training_address)),
+        facs.length ? `${facs.length} cơ sở đang sử dụng · tổng ${state.sub.facilities.length} cơ sở trong lịch sử`
+                    : "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép.")}
+      </div>`;
+  }
   function renderCompanyPanes() {
     renderReps(); renderFacilities(); renderViolations(); renderInspections(); renderTimeline();
+    renderOverview();
+    setCount("staff", countStaff(state.cur?.staff_list || ""));
     const canEdit = isLead();
     $$("#company-dialog [data-add]").forEach((b) => (b.hidden = !canEdit || !state.cur));
   }
@@ -1634,6 +1729,8 @@
     $("#company-dialog").addEventListener("click", (e) => {
       const s = e.target.closest("[data-sub]");
       if (s) { openSub(s.dataset.sub, +s.dataset.subId); return; }
+      const j = e.target.closest("[data-goto]");
+      if (j) { showCompanyTab(j.dataset.goto); return; }
       const g = e.target.closest("[data-tg]");
       if (g) { state.tfilter = g.dataset.tg; renderTimeline(); return; }
       const o = e.target.closest("[data-open]");
