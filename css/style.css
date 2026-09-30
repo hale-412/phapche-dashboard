@@ -329,3 +329,24 @@ tr.group-row td .count { font-weight: 400; color: var(--muted); font-size: 12px;
   .tl-date { padding-top: 0; }
   .tl-act { justify-self: start; }
 }
+
+/* ============ Tab Tổng quan của profile doanh nghiệp ============ */
+.ov-title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.ov-title h3 { margin: 0; font-size: 18px; }
+.ov-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+
+.ov-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.ov-card { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); padding: 12px 14px; }
+.ov-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ov-head h3 { margin: 0; font-size: 13px; font-weight: 600; flex: 1; }
+.ov-grid { margin: 0; }
+.ov-row { display: grid; grid-template-columns: 132px 1fr; gap: 10px; padding: 4px 0; }
+.ov-row dt { font-size: 12px; color: var(--muted); }
+.ov-row dd { margin: 0; font-size: 13px; overflow-wrap: anywhere; }
+.ov-list { margin: 0; padding-left: 18px; }
+.ov-list li { font-size: 13px; }
+.ov-card > .small { margin: 8px 0 0; }
+
+@media (max-width: 560px) {
+  .ov-row { grid-template-columns: 1fr; gap: 0; }
+}

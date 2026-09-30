@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=14">
+<link rel="stylesheet" href="css/style.css?v=15">
 </head>
 <body>
 
@@ -37,7 +37,7 @@
       <button data-view="overview" class="active">Tổng quan</button>
       <button data-view="tasks">Văn bản / Công việc</button>
       <button data-view="licenses">Hồ sơ Giấy phép</button>
-      <button data-view="companies">Doanh nghiệp</button>
+      <button data-view="companies">Profile doanh nghiệp</button>
       <button data-view="staff">Chuyên viên</button>
     </nav>
     <div class="user-box">
@@ -331,7 +331,7 @@
   </form>
 </dialog>
 
-<!-- ===================== MODAL DOANH NGHIỆP ===================== -->
+<!-- ===================== MODAL PROFILE DOANH NGHIỆP ===================== -->
 <dialog id="company-dialog" class="modal wide">
   <form id="company-form" method="dialog">
     <div class="modal-head">
@@ -339,8 +339,15 @@
       <button type="button" class="btn ghost" data-close>✕</button>
     </div>
     <nav class="ctabs" id="company-tabs">
-      <button type="button" class="ctab on" data-ctab="info">Hồ sơ</button>
+      <button type="button" class="ctab on" data-ctab="overview">Tổng quan</button>
+      <button type="button" class="ctab" data-ctab="license">Giấy phép</button>
+      <button type="button" class="ctab" data-ctab="name">Tên &amp; mã số</button>
+      <button type="button" class="ctab" data-ctab="address">Địa chỉ &amp; liên hệ</button>
+      <button type="button" class="ctab" data-ctab="markets">Thị trường</button>
+      <button type="button" class="ctab" data-ctab="capital">Vốn &amp; loại hình</button>
+      <button type="button" class="ctab" data-ctab="deposit">Ký quỹ</button>
       <button type="button" class="ctab" data-ctab="reps">Người đại diện <span class="cnt" data-cnt="reps"></span></button>
+      <button type="button" class="ctab" data-ctab="staff">Nhân viên nghiệp vụ <span class="cnt" data-cnt="staff"></span></button>
       <button type="button" class="ctab" data-ctab="facilities">Cơ sở đào tạo <span class="cnt" data-cnt="facilities"></span></button>
       <button type="button" class="ctab" data-ctab="violations">Xử phạt VPHC <span class="cnt" data-cnt="violations"></span></button>
       <button type="button" class="ctab" data-ctab="inspections">Thanh tra, kiểm tra <span class="cnt" data-cnt="inspections"></span></button>
@@ -348,137 +355,154 @@
     </nav>
     <div class="modal-body">
       <input type="hidden" id="c-id">
+      <datalist id="c-province-list"></datalist>
 
-      <!-- ===== Tab 1: Hồ sơ (thông tin hiện hành) ===== -->
-      <section class="cpane" data-pane="info">
-      <div class="form-grid">
-        <fieldset class="span-2 form-box">
-          <legend>1. Tên doanh nghiệp</legend>
-          <div class="form-grid">
-            <label>Mã số doanh nghiệp<input id="c-tax_code" class="lead-field" placeholder="10 chữ số"></label>
-            <label>Trạng thái<select id="c-status-f" class="lead-field"></select></label>
-            <label class="span-2">Tên đầy đủ<input id="c-name" required class="lead-field"></label>
-            <label>Tên viết tắt<input id="c-short_name" class="lead-field"></label>
-            <label>Tên tiếng Anh<input id="c-en_name" class="lead-field"></label>
-            <label class="span-2">Loại hình<input id="c-company_type" class="lead-field" placeholder="CTCP / TNHH"></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box">
-          <legend>2. Thông tin về Giấy phép</legend>
-          <div class="form-grid">
-            <label>Số GP hiện tại<input id="c-license_number" class="lead-field"></label>
-            <label>Ngày cấp GP lần đầu<input type="date" id="c-license_date" class="lead-field"></label>
-            <label>Số GP lần đầu<input id="c-first_license_number" class="lead-field"></label>
-            <label>Ngày cấp lần đầu<input type="date" id="c-first_license_date" class="lead-field"></label>
-            <label>Lần cấp đổi theo NĐ 38<input id="c-nd38_times" class="lead-field"></label>
-            <label>Ngày cấp đổi theo NĐ 38<input type="date" id="c-nd38_date" class="lead-field"></label>
-            <label>Số GP (Luật 69)<input id="c-law69_number" class="lead-field"></label>
-            <label>Ngày cấp GP theo Luật 69<input type="date" id="c-law69_date" class="lead-field"></label>
-            <label>Lần điều chỉnh thông tin<input id="c-adjust_times" class="lead-field"></label>
-            <label>Ngày điều chỉnh thông tin<input type="date" id="c-adjust_date" class="lead-field"></label>
-            <label class="span-2">DS 101<input id="c-ds101" class="lead-field"></label>
-            <fieldset class="span-2 form-box" id="c-ended-box">
-              <legend>Chấm dứt hoạt động XKLĐ</legend>
-              <div class="form-grid">
-                <label>Năm chấm dứt<input id="c-ended_year" class="lead-field"></label>
-                <label>Hình thức<input id="c-ended_type" class="lead-field" placeholder="Nộp lại / Thu hồi"></label>
-                <label>Lý do<input id="c-ended_reason" class="lead-field"></label>
-                <label>Văn bản<input id="c-ended_ref" class="lead-field"></label>
-              </div>
-            </fieldset>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box">
-          <legend>3. Địa chỉ trụ sở chính</legend>
-          <div class="form-grid">
-            <label class="span-2">Địa chỉ trụ sở chính<textarea id="c-address" rows="2" class="lead-field"></textarea></label>
-            <label>Tỉnh / Thành phố<input id="c-province" class="lead-field" list="c-province-list"></label>
-            <datalist id="c-province-list"></datalist>
-            <label>Điện thoại<input id="c-phone" class="lead-field"></label>
-            <label>Fax<input id="c-fax" class="lead-field"></label>
-            <label>Email<input id="c-email" class="lead-field"></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box">
-          <legend>4. Cơ sở vật chất đào tạo giáo dục định hướng</legend>
-          <div class="form-grid">
-            <label class="span-2">Tên cơ sở đào tạo (CSĐT)<textarea id="c-training_facility" rows="2" class="lead-field"></textarea></label>
-            <label class="span-2">Địa chỉ cơ sở vật chất đào tạo<textarea id="c-training_address" rows="2" class="lead-field" placeholder="Mỗi cơ sở một dòng"></textarea></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box">
-          <legend>5. Vốn điều lệ</legend>
-          <div class="form-grid">
-            <label class="span-2">Vốn điều lệ (VNĐ)
-              <input id="c-charter_capital" class="lead-field" inputmode="numeric" placeholder="VD: 20000000000 hoặc 20 tỷ">
-              <small id="c-capital-hint" class="field-hint" hidden></small>
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box">
-          <legend>6. Ký quỹ</legend>
-          <div class="form-grid">
-            <label>Số tiền ký quỹ (VNĐ)
-              <input id="c-deposit_amount" class="lead-field" inputmode="numeric" placeholder="VD: 2000000000 hoặc 2 tỷ">
-              <small id="c-deposit-hint" class="field-hint" hidden></small>
-            </label>
-            <label>Ngày ký quỹ<input type="date" id="c-deposit_date" class="lead-field"></label>
-            <label class="span-2">Ngân hàng nhận ký quỹ<input id="c-deposit_bank" class="lead-field" placeholder="Tên ngân hàng - chi nhánh"></label>
-            <label>Số tài khoản ký quỹ<input id="c-deposit_account" class="lead-field"></label>
-            <label>Giấy xác nhận ký quỹ<input id="c-deposit_ref" class="lead-field" placeholder="Số / ngày văn bản"></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box">
-          <legend>7. Người đại diện theo pháp luật</legend>
-          <div class="form-grid">
-            <label class="span-2">Họ tên - chức danh<input id="c-legal_rep" class="lead-field" placeholder="VD: Nguyễn Văn An - Tổng giám đốc"></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box">
-          <legend>8. Danh sách nhân viên nghiệp vụ</legend>
-          <div class="form-grid">
-            <label class="span-2">Mỗi dòng một người (họ tên - chức danh - ghi chú)
-              <textarea id="c-staff_list" rows="5" class="lead-field" placeholder="Nguyễn Thị B - Chuyên viên tuyển chọn&#10;Trần Văn C - Chuyên viên thị trường Nhật Bản"></textarea>
-              <small id="c-staff-hint" class="field-hint" hidden></small>
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box">
-          <legend>9. Trang thông tin điện tử</legend>
-          <div class="form-grid">
-            <label class="span-2">Website<input id="c-website" class="lead-field" placeholder="VD: www.congty.vn"></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box">
-          <legend>10. Ghi chú khác</legend>
-          <div class="form-grid">
-            <label class="span-2"><textarea id="c-note" rows="3" class="lead-field"></textarea></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="span-2 form-box lead-only" id="c-docref-box">
-          <legend>Căn cứ thay đổi lần này (ghi vào lịch sử)</legend>
-          <div class="form-grid">
-            <label>Theo văn bản số<input id="c-ev-doc_number" class="lead-field" list="c-ev-doc-list" placeholder="Bỏ trống nếu không theo văn bản">
-              <datalist id="c-ev-doc-list"></datalist></label>
-            <label>Ngày văn bản<input type="date" id="c-ev-doc_date" class="lead-field"></label>
-            <label class="span-2">Ghi chú căn cứ<input id="c-ev-note" class="lead-field" placeholder="VD: DN đề nghị điều chỉnh thông tin trên Giấy phép"></label>
-            <p class="span-2 muted small">Mọi trường bị sửa ở trên sẽ được ghi vào tab <b>Lịch sử &amp; văn bản</b> kèm giá trị cũ → mới và căn cứ này.</p>
-          </div>
-        </fieldset>
-      </div>
+      <!-- ===== Tổng quan: thông tin hiện tại của doanh nghiệp (chỉ xem) ===== -->
+      <section class="cpane" data-pane="overview">
+        <div id="company-overview"></div>
       </section>
 
-      <!-- ===== Tab 2: Người đại diện theo pháp luật ===== -->
+      <!-- ===== Giấy phép ===== -->
+      <section class="cpane" data-pane="license" hidden>
+        <div class="form-grid">
+          <fieldset class="span-2 form-box">
+            <legend>Giấy phép hiện tại</legend>
+            <div class="form-grid">
+              <label>Số giấy phép<input id="c-license_number" class="lead-field"></label>
+              <label>Ngày cấp<input type="date" id="c-license_date" class="lead-field"></label>
+              <label>Trạng thái hoạt động<select id="c-status-f" class="lead-field"></select></label>
+              <label>DS 101<input id="c-ds101" class="lead-field"></label>
+            </div>
+          </fieldset>
+          <fieldset class="span-2 form-box">
+            <legend>Lịch sử cấp phép</legend>
+            <div class="form-grid">
+              <label>Số GP lần đầu<input id="c-first_license_number" class="lead-field"></label>
+              <label>Ngày cấp lần đầu<input type="date" id="c-first_license_date" class="lead-field"></label>
+              <label>Lần cấp đổi theo NĐ 38<input id="c-nd38_times" class="lead-field"></label>
+              <label>Ngày cấp đổi theo NĐ 38<input type="date" id="c-nd38_date" class="lead-field"></label>
+              <label>Số GP (Luật 69)<input id="c-law69_number" class="lead-field"></label>
+              <label>Ngày cấp GP theo Luật 69<input type="date" id="c-law69_date" class="lead-field"></label>
+              <label>Lần điều chỉnh thông tin<input id="c-adjust_times" class="lead-field"></label>
+              <label>Ngày điều chỉnh thông tin<input type="date" id="c-adjust_date" class="lead-field"></label>
+            </div>
+          </fieldset>
+          <fieldset class="span-2 form-box" id="c-ended-box">
+            <legend>Chấm dứt hoạt động XKLĐ</legend>
+            <div class="form-grid">
+              <label>Năm chấm dứt<input id="c-ended_year" class="lead-field"></label>
+              <label>Hình thức<input id="c-ended_type" class="lead-field" placeholder="Nộp lại / Thu hồi"></label>
+              <label>Lý do<input id="c-ended_reason" class="lead-field"></label>
+              <label>Văn bản<input id="c-ended_ref" class="lead-field"></label>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- ===== Tên & mã số ===== -->
+      <section class="cpane" data-pane="name" hidden>
+        <div class="form-grid">
+          <fieldset class="span-2 form-box">
+            <legend>Tên doanh nghiệp</legend>
+            <div class="form-grid">
+              <label class="span-2">Tên đầy đủ (tiếng Việt)<input id="c-name" required class="lead-field"></label>
+              <label class="span-2">Tên viết tắt<input id="c-short_name" class="lead-field"></label>
+              <label class="span-2">Tên tiếng Anh<input id="c-en_name" class="lead-field"></label>
+            </div>
+          </fieldset>
+          <fieldset class="span-2 form-box">
+            <legend>Mã số doanh nghiệp</legend>
+            <div class="form-grid">
+              <label class="span-2">Mã số doanh nghiệp<input id="c-tax_code" class="lead-field" placeholder="10 chữ số"></label>
+            </div>
+          </fieldset>
+          <fieldset class="span-2 form-box">
+            <legend>Ghi chú khác</legend>
+            <div class="form-grid">
+              <label class="span-2"><textarea id="c-note" rows="3" class="lead-field"></textarea></label>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- ===== Địa chỉ & liên hệ ===== -->
+      <section class="cpane" data-pane="address" hidden>
+        <div class="form-grid">
+          <fieldset class="span-2 form-box">
+            <legend>Địa chỉ trụ sở chính</legend>
+            <div class="form-grid">
+              <label class="span-2">Địa chỉ trụ sở chính<textarea id="c-address" rows="2" class="lead-field"></textarea></label>
+              <label class="span-2">Tỉnh / Thành phố<input id="c-province" class="lead-field" list="c-province-list"></label>
+            </div>
+          </fieldset>
+          <fieldset class="span-2 form-box">
+            <legend>Liên hệ</legend>
+            <div class="form-grid">
+              <label>Điện thoại<input id="c-phone" class="lead-field"></label>
+              <label>Fax<input id="c-fax" class="lead-field"></label>
+              <label>Email<input id="c-email" class="lead-field"></label>
+              <label>Trang thông tin điện tử<input id="c-website" class="lead-field" placeholder="VD: www.congty.vn"></label>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- ===== Thị trường hoạt động ===== -->
+      <section class="cpane" data-pane="markets" hidden>
+        <div class="form-grid">
+          <fieldset class="span-2 form-box">
+            <legend>Các thị trường hoạt động</legend>
+            <div class="form-grid">
+              <label class="span-2">Mỗi dòng một thị trường
+                <textarea id="c-markets" rows="6" class="lead-field" placeholder="Nhật Bản&#10;Đài Loan&#10;Hàn Quốc&#10;Ả-rập Xê-út"></textarea>
+                <small id="c-markets-hint" class="field-hint" hidden></small>
+              </label>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- ===== Vốn & loại hình ===== -->
+      <section class="cpane" data-pane="capital" hidden>
+        <div class="form-grid">
+          <fieldset class="span-2 form-box">
+            <legend>Vốn điều lệ</legend>
+            <div class="form-grid">
+              <label class="span-2">Vốn điều lệ (VNĐ)
+                <input id="c-charter_capital" class="lead-field" inputmode="numeric" placeholder="VD: 20000000000 hoặc 20 tỷ">
+                <small id="c-capital-hint" class="field-hint" hidden></small>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset class="span-2 form-box">
+            <legend>Loại hình doanh nghiệp</legend>
+            <div class="form-grid">
+              <label class="span-2">Loại hình<input id="c-company_type" class="lead-field" placeholder="CTCP / TNHH"></label>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- ===== Ký quỹ ===== -->
+      <section class="cpane" data-pane="deposit" hidden>
+        <div class="form-grid">
+          <fieldset class="span-2 form-box">
+            <legend>Tài khoản ký quỹ</legend>
+            <div class="form-grid">
+              <label class="span-2">Ngân hàng nhận ký quỹ<input id="c-deposit_bank" class="lead-field" placeholder="Tên ngân hàng - chi nhánh"></label>
+              <label>Số tài khoản ký quỹ<input id="c-deposit_account" class="lead-field"></label>
+              <label>Số tiền ký quỹ (VNĐ)
+                <input id="c-deposit_amount" class="lead-field" inputmode="numeric" placeholder="VD: 2000000000 hoặc 2 tỷ">
+                <small id="c-deposit-hint" class="field-hint" hidden></small>
+              </label>
+              <label>Ngày ký quỹ<input type="date" id="c-deposit_date" class="lead-field"></label>
+              <label>Giấy xác nhận ký quỹ<input id="c-deposit_ref" class="lead-field" placeholder="Số / ngày văn bản"></label>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- ===== Người đại diện theo pháp luật ===== -->
       <section class="cpane" data-pane="reps" hidden>
         <div class="pane-head">
           <p class="muted small">Một DN có thể có nhiều người đại diện. Bỏ trống <b>Ngày kết thúc</b> nghĩa là đang giữ chức.</p>
@@ -487,9 +511,30 @@
         <div class="table-wrap"><table class="sub-table"><thead><tr>
           <th>Họ và tên</th><th>Chức danh</th><th>CCCD / Hộ chiếu</th><th>Thời gian</th><th>Văn bản</th><th></th>
         </tr></thead><tbody id="reps-body"></tbody></table></div>
+        <fieldset class="form-box" style="margin-top:14px">
+          <legend>Người đại diện ghi trên Giấy phép</legend>
+          <div class="form-grid">
+            <label class="span-2">Họ tên - chức danh<input id="c-legal_rep" class="lead-field" placeholder="VD: Nguyễn Văn An - Tổng giám đốc"></label>
+          </div>
+        </fieldset>
       </section>
 
-      <!-- ===== Tab 3: Cơ sở đào tạo ===== -->
+      <!-- ===== Danh sách nhân viên nghiệp vụ ===== -->
+      <section class="cpane" data-pane="staff" hidden>
+        <div class="form-grid">
+          <fieldset class="span-2 form-box">
+            <legend>Danh sách nhân viên nghiệp vụ</legend>
+            <div class="form-grid">
+              <label class="span-2">Mỗi dòng một người (họ tên - chức danh - ghi chú)
+                <textarea id="c-staff_list" rows="8" class="lead-field" placeholder="Nguyễn Thị B - Chuyên viên tuyển chọn&#10;Trần Văn C - Chuyên viên thị trường Nhật Bản"></textarea>
+                <small id="c-staff-hint" class="field-hint" hidden></small>
+              </label>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <!-- ===== Cơ sở vật chất đào tạo giáo dục định hướng ===== -->
       <section class="cpane" data-pane="facilities" hidden>
         <div class="pane-head">
           <p class="muted small">Cơ sở vật chất đào tạo giáo dục định hướng. Bỏ trống <b>Ngày ngừng</b> nghĩa là đang sử dụng.</p>
@@ -498,9 +543,16 @@
         <div class="table-wrap"><table class="sub-table"><thead><tr>
           <th>Tên cơ sở</th><th>Địa chỉ</th><th>Hình thức</th><th>Quy mô</th><th>Thời gian</th><th>Văn bản</th><th></th>
         </tr></thead><tbody id="facilities-body"></tbody></table></div>
+        <fieldset class="form-box" style="margin-top:14px">
+          <legend>Cơ sở đào tạo ghi trên Giấy phép</legend>
+          <div class="form-grid">
+            <label class="span-2">Tên cơ sở đào tạo (CSĐT)<textarea id="c-training_facility" rows="2" class="lead-field"></textarea></label>
+            <label class="span-2">Địa chỉ cơ sở vật chất đào tạo<textarea id="c-training_address" rows="2" class="lead-field" placeholder="Mỗi cơ sở một dòng"></textarea></label>
+          </div>
+        </fieldset>
       </section>
 
-      <!-- ===== Tab 4: Xử phạt vi phạm hành chính ===== -->
+      <!-- ===== Xử phạt vi phạm hành chính ===== -->
       <section class="cpane" data-pane="violations" hidden>
         <div class="pane-head">
           <p class="muted small" id="violations-sum"></p>
@@ -511,7 +563,7 @@
         </tr></thead><tbody id="violations-body"></tbody></table></div>
       </section>
 
-      <!-- ===== Tab 5: Thanh tra / kiểm tra ===== -->
+      <!-- ===== Thanh tra / kiểm tra ===== -->
       <section class="cpane" data-pane="inspections" hidden>
         <div class="pane-head">
           <p class="muted small">Các cuộc thanh tra, kiểm tra và kết luận.</p>
@@ -522,7 +574,7 @@
         </tr></thead><tbody id="inspections-body"></tbody></table></div>
       </section>
 
-      <!-- ===== Tab 6: Dòng thời gian tổng hợp ===== -->
+      <!-- ===== Dòng thời gian tổng hợp ===== -->
       <section class="cpane" data-pane="history" hidden>
         <div class="pane-head">
           <div class="chips" id="timeline-filter"></div>
@@ -530,6 +582,18 @@
         </div>
         <ol class="timeline" id="company-timeline"></ol>
       </section>
+
+      <!-- Căn cứ thay đổi: luôn hiện khi đang sửa, áp cho mọi tab thông tin -->
+      <fieldset class="form-box lead-only" id="c-docref-box">
+        <legend>Căn cứ thay đổi lần này (ghi vào lịch sử)</legend>
+        <div class="form-grid">
+          <label>Theo văn bản số<input id="c-ev-doc_number" class="lead-field" list="c-ev-doc-list" placeholder="Bỏ trống nếu không theo văn bản">
+            <datalist id="c-ev-doc-list"></datalist></label>
+          <label>Ngày văn bản<input type="date" id="c-ev-doc_date" class="lead-field"></label>
+          <label class="span-2">Ghi chú căn cứ<input id="c-ev-note" class="lead-field" placeholder="VD: DN đề nghị điều chỉnh thông tin trên Giấy phép"></label>
+          <p class="span-2 muted small">Mọi trường bị sửa ở các tab thông tin sẽ được ghi vào tab <b>Lịch sử &amp; văn bản</b> kèm giá trị cũ → mới và căn cứ này.</p>
+        </div>
+      </fieldset>
     </div>
     <div class="modal-foot">
       <button type="button" class="btn danger lead-only" id="delete-company-btn" hidden>Xóa</button>
@@ -768,8 +832,8 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=14"></script>
-<script src="js/app.js?v=14"></script>
+<script src="js/config.js?v=15"></script>
+<script src="js/app.js?v=15"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>

@@ -556,6 +556,7 @@ create table if not exists public.companies (
   deposit_date         date,                        -- Ngày ký quỹ / ngày xác nhận
   deposit_ref          text,                        -- Số giấy xác nhận ký quỹ
   staff_list           text,                        -- Danh sách nhân viên nghiệp vụ (mỗi dòng 1 người)
+  markets              text,                        -- Các thị trường hoạt động (mỗi dòng 1 thị trường)
   license_number       text,                        -- Số GP hiện tại
   license_date         date,                        -- Ngày cấp GP lần đầu
   first_license_number text,
@@ -586,6 +587,7 @@ alter table public.companies add column if not exists deposit_bank     text;
 alter table public.companies add column if not exists deposit_account  text;
 alter table public.companies add column if not exists deposit_date     date;
 alter table public.companies add column if not exists deposit_ref      text;
+alter table public.companies add column if not exists markets         text;  -- Cac thi truong hoat dong (moi dong 1 thi truong)
 
 create unique index if not exists companies_tax_code_uidx on public.companies(tax_code) where tax_code is not null;
 create index if not exists companies_name_idx     on public.companies(lower(name));
