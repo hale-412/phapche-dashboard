@@ -30,6 +30,7 @@ window.BIZ_TASK_TYPES = [
   "Hồ sơ điều chỉnh thông tin trên Giấy phép",
   "Nộp lại Giấy phép",
   "Đề nghị tất toán tài khoản ký quỹ",
+  "Đề nghị xác nhận lao động xuất cảnh",
 ];
 
 // Module Cập nhật thông tin doanh nghiệp
