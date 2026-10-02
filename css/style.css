@@ -319,6 +319,9 @@ tr.group-row td .count { font-weight: 400; color: var(--muted); font-size: 12px;
 .tl-body .sender { font-size: 12px; color: var(--muted); margin-top: 3px; }
 .tl-act { white-space: nowrap; }
 .diff { margin-top: 4px; font-size: 13px; }
+.was { margin-top: 4px; font-size: 12px; color: var(--ink-2); line-height: 1.45; }
+.was-k { color: var(--muted); }
+label > .was { margin-top: 4px; font-weight: 400; }
 .diff .old { color: var(--muted); text-decoration: line-through; }
 .diff .new { color: var(--good-ink); font-weight: 600; }
 .crit { color: var(--critical-ink); }
