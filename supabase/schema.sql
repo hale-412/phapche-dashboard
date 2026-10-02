@@ -781,7 +781,28 @@ create table if not exists public.company_inspections (
 create index if not exists company_inspections_idx on public.company_inspections(company_id);
 
 -- ---------------------------------------------------------------
--- 9.5 Nhật ký thay đổi thông tin DN (tự động khi sửa hồ sơ + mốc nhập tay)
+-- 9.5 Các lần điều chỉnh thông tin trên Giấy phép
+-- ---------------------------------------------------------------
+create table if not exists public.company_adjustments (
+  id              bigint generated always as identity primary key,
+  company_id      bigint not null references public.companies(id) on delete cascade,
+  times           text,                      -- Lần điều chỉnh thứ (1, 2, 3…)
+  adjust_date     date,                      -- Ngày điều chỉnh
+  license_number  text,                      -- Số Giấy phép sau điều chỉnh
+  content         text,                      -- Nội dung điều chỉnh
+  old_value       text,                      -- Thông tin trước điều chỉnh
+  new_value       text,                      -- Thông tin sau điều chỉnh
+  doc_number      text,                      -- Văn bản căn cứ (số)
+  doc_date        date,
+  note            text,
+  created_by      uuid references public.profiles(id),
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+create index if not exists company_adjustments_idx on public.company_adjustments(company_id, adjust_date desc);
+
+-- ---------------------------------------------------------------
+-- 9.6 Nhật ký thay đổi thông tin DN (tự động khi sửa hồ sơ + mốc nhập tay)
 -- ---------------------------------------------------------------
 create table if not exists public.company_events (
   id          bigint generated always as identity primary key,
@@ -805,7 +826,7 @@ create table if not exists public.company_events (
 create index if not exists company_events_idx on public.company_events(company_id, event_date desc);
 
 -- ---------------------------------------------------------------
--- 9.6 Trigger + RLS cho cả 5 bảng
+-- 9.7 Trigger + RLS cho cả 6 bảng
 --     Ghi: chỉ Trưởng phòng (giống bảng companies).
 --     Muốn cho chuyên viên nhập: đổi public.is_lead() thành true ở 3 policy write.
 -- ---------------------------------------------------------------
@@ -813,7 +834,7 @@ do $do$
 declare
   tb text;
   tbs text[] := array['company_reps','company_facilities','company_violations',
-                      'company_inspections','company_events'];
+                      'company_inspections','company_adjustments','company_events'];
 begin
   foreach tb in array tbs
   loop

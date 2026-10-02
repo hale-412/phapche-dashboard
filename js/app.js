@@ -32,7 +32,7 @@
     view: "overview",
     // Hồ sơ doanh nghiệp đang mở + 5 bảng con của nó (nạp riêng khi mở hồ sơ)
     cur: null,
-    sub: { reps: [], facilities: [], violations: [], inspections: [], events: [] },
+    sub: { reps: [], facilities: [], violations: [], inspections: [], adjustments: [], events: [] },
     tfilter: "all",
   };
 
@@ -703,10 +703,10 @@
 
     // Các tab lịch sử chỉ có nghĩa với doanh nghiệp đã lưu
     state.cur = c;
-    state.sub = { reps: [], facilities: [], violations: [], inspections: [], events: [] };
+    state.sub = { reps: [], facilities: [], violations: [], inspections: [], adjustments: [], events: [] };
     state.tfilter = "all";
     // Các tab cần hồ sơ đã lưu (có id) thì mới mở được
-    const NEED_ID = ["reps", "facilities", "violations", "inspections", "history"];
+    const NEED_ID = ["reps", "facilities", "violations", "inspections", "adjustments", "history"];
     $$("#company-tabs .ctab").forEach((b) => (b.hidden = !c && NEED_ID.includes(b.dataset.ctab)));
     $("#c-docref-box").hidden = !(c && canEdit);
     ["c-ev-doc_number", "c-ev-doc_date", "c-ev-note"].forEach((k) => ($("#" + k).value = ""));
@@ -1347,6 +1347,13 @@
       date: ["decision_date", "from_date", "to_date", "conclusion_date"], num: [],
       order: (a, b) => (b.from_date || b.decision_date || "").localeCompare(a.from_date || a.decision_date || ""),
     },
+    adjustments: {
+      table: "company_adjustments", dlg: "#adjust-dialog", form: "#adjust-form", pre: "aj-", del: "#delete-adjust-btn",
+      title: "#adjust-dialog-title", head: "Điều chỉnh thông tin Giấy phép", body: "#adjustments-body",
+      text: ["times", "license_number", "content", "old_value", "new_value", "doc_number", "note"],
+      date: ["adjust_date", "doc_date"], num: [],
+      order: (a, b) => (b.adjust_date || "").localeCompare(a.adjust_date || "") || (+b.times || 0) - (+a.times || 0),
+    },
     events: {
       table: "company_events", dlg: "#event-dialog", form: "#event-form", pre: "e-", del: "#delete-event-btn",
       title: "#event-dialog-title", head: "Mốc lịch sử", body: null,
@@ -1437,6 +1444,7 @@
     const reps = state.sub.reps.filter((r) => !r.to_date);
     const facs = state.sub.facilities.filter((f) => !f.to_date);
     const mk = lines(c.markets), staff = lines(c.staff_list);
+    const adj = state.sub.adjustments[0] || null;        // lần điều chỉnh gần nhất (đã sắp giảm dần)
 
     box.innerHTML = `
       <div class="ov-title">
@@ -1450,9 +1458,13 @@
         row("Số giấy phép", dash(c.license_number)) +
         row("Ngày cấp", c.license_date ? fmtDate(c.license_date) : dash("")) +
         row("Trạng thái", `<span class="tag ${st.cls}">${esc(st.label)}</span>`) +
-        row("Điều chỉnh thông tin GP", c.adjust_times || c.adjust_date
-          ? `Lần điều chỉnh thứ <b>${esc(c.adjust_times || "—")}</b>${c.adjust_date ? ` · ngày <b>${fmtDate(c.adjust_date)}</b>` : ""}`
-          : dash("")) +
+        row("Điều chỉnh thông tin GP", adj
+          ? `Lần điều chỉnh thứ <b>${esc(adj.times || "—")}</b>${adj.adjust_date ? ` · ngày <b>${fmtDate(adj.adjust_date)}</b>` : ""}`
+            + (state.sub.adjustments.length > 1 ? ` <span class="muted">(tổng ${state.sub.adjustments.length} lần)</span>` : "")
+            + (adj.content ? `<div class="muted small">${esc(adj.content)}</div>` : "")
+          : c.adjust_times || c.adjust_date
+            ? `Lần điều chỉnh thứ <b>${esc(c.adjust_times || "—")}</b>${c.adjust_date ? ` · ngày <b>${fmtDate(c.adjust_date)}</b>` : ""}`
+            : dash("")) +
         (c.status === "ended"
           ? row("Chấm dứt", dash([c.ended_type, c.ended_year].filter(Boolean).join(" · ")))
           : ""))}
@@ -1517,7 +1529,7 @@
       </div>`;
   }
   function renderCompanyPanes() {
-    renderReps(); renderFacilities(); renderViolations(); renderInspections(); renderTimeline();
+    renderReps(); renderAdjustments(); renderFacilities(); renderViolations(); renderInspections(); renderTimeline();
     renderOverview();
     setCount("staff", countStaff(state.cur?.staff_list || ""));
     const canEdit = isLead();
@@ -1546,6 +1558,21 @@
       <td>${docCell(r.doc_number, r.doc_date)}</td>
       ${rowBtns("reps", r.id)}</tr>`).join("")
       : emptyRow(6, "Chưa có người đại diện nào được ghi nhận");
+  }
+
+  function renderAdjustments() {
+    const rows = state.sub.adjustments;
+    setCount("adjustments", rows.length);
+    $("#adjustments-body").innerHTML = rows.length ? rows.map((a) => `<tr>
+      <td><b>${esc(a.times || "—")}</b></td>
+      <td>${a.adjust_date ? fmtDate(a.adjust_date) : "—"}</td>
+      <td>${esc(a.license_number || "—")}</td>
+      <td>${esc(a.content || "—")}${a.note ? `<div class="sender">${esc(a.note)}</div>` : ""}</td>
+      <td>${a.old_value || a.new_value
+        ? `<div class="diff"><span class="old">${esc(a.old_value || "(trống)")}</span> → <span class="new">${esc(a.new_value || "(trống)")}</span></div>` : "—"}</td>
+      <td>${docCell(a.doc_number, a.doc_date)}</td>
+      ${rowBtns("adjustments", a.id)}</tr>`).join("")
+      : emptyRow(7, "Chưa ghi nhận lần điều chỉnh thông tin Giấy phép nào");
   }
 
   function renderFacilities() {
@@ -1615,6 +1642,11 @@
     state.sub.inspections.forEach((i) => out.push({ d: i.from_date || i.decision_date, g: "inspection", tag: i.kind || "Kiểm tra", cls: "supplement",
       html: `${esc(i.scope || i.kind || "")}${i.result ? ` — ${esc(i.result)}` : ""}`,
       doc: i.decision_number, docd: i.decision_date, note: i.agency, edit: { kind: "inspections", id: i.id } }));
+    state.sub.adjustments.forEach((a) => out.push({ d: a.adjust_date, g: "license", tag: "Điều chỉnh GP", cls: "license",
+      html: `Lần điều chỉnh thứ <b>${esc(a.times || "—")}</b>${a.content ? " — " + esc(a.content) : ""}${a.license_number ? ` · GP số <b>${esc(a.license_number)}</b>` : ""}`
+        + (a.old_value || a.new_value
+          ? `<div class="diff"><span class="old">${esc(a.old_value || "(trống)")}</span> → <span class="new">${esc(a.new_value || "(trống)")}</span></div>` : ""),
+      doc: a.doc_number, docd: a.doc_date, note: a.note, edit: { kind: "adjustments", id: a.id } }));
     state.sub.reps.forEach((r) => {
       out.push({ d: r.from_date, g: "rep", tag: "Người đại diện", cls: "done",
         html: `Bắt đầu: <b>${esc(r.full_name)}</b>${r.title ? " - " + esc(r.title) : ""}`,
@@ -1714,8 +1746,8 @@
   }
 
   // Nhóm trên dòng thời gian + trường dùng làm tên gọi của từng bảng con
-  const SUB_GROUP = { reps: "rep", facilities: "facility", violations: "violation", inspections: "inspection" };
-  const SUB_NAME  = { reps: "full_name", facilities: "name", violations: "decision_number", inspections: "decision_number" };
+  const SUB_GROUP = { reps: "rep", facilities: "facility", violations: "violation", inspections: "inspection", adjustments: "license" };
+  const SUB_NAME  = { reps: "full_name", facilities: "name", violations: "decision_number", inspections: "decision_number", adjustments: "times" };
 
   // Nhãn tiếng Việt của một trường trong hộp thoại con — lấy luôn từ thẻ <label> trên giao diện
   function subLabel(s, k) {
@@ -1726,7 +1758,11 @@
     return t || k;
   }
 
-  const subTitle = (kind, rec) => (rec && (rec[SUB_NAME[kind]] || "")) || "#" + (rec?.id || "");
+  const subTitle = (kind, rec) => {
+    const v = rec && (rec[SUB_NAME[kind]] || "");
+    if (kind === "adjustments") return v ? "Lần thứ " + v : (rec?.adjust_date ? "Ngày " + fmtDate(rec.adjust_date) : "#" + (rec?.id || ""));
+    return v || "#" + (rec?.id || "");
+  };
 
   // Toàn bộ nội dung một bản ghi con, dùng khi xóa (để còn giữ lại được thông tin cũ)
   function subDump(s, rec) {

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=18">
+<link rel="stylesheet" href="css/style.css?v=19">
 </head>
 <body>
 
@@ -341,6 +341,7 @@
     <nav class="ctabs" id="company-tabs">
       <button type="button" class="ctab on" data-ctab="overview">Tổng quan</button>
       <button type="button" class="ctab" data-ctab="license">Giấy phép</button>
+      <button type="button" class="ctab" data-ctab="adjustments">Điều chỉnh GP <span class="cnt" data-cnt="adjustments"></span></button>
       <button type="button" class="ctab" data-ctab="name">Tên &amp; mã số</button>
       <button type="button" class="ctab" data-ctab="address">Địa chỉ &amp; liên hệ</button>
       <button type="button" class="ctab" data-ctab="markets">Thị trường</button>
@@ -383,8 +384,6 @@
               <label>Ngày cấp đổi theo NĐ 38<input type="date" id="c-nd38_date" class="lead-field"></label>
               <label>Số GP (Luật 69)<input id="c-law69_number" class="lead-field"></label>
               <label>Ngày cấp GP theo Luật 69<input type="date" id="c-law69_date" class="lead-field"></label>
-              <label>Lần điều chỉnh thông tin<input id="c-adjust_times" class="lead-field"></label>
-              <label>Ngày điều chỉnh thông tin<input type="date" id="c-adjust_date" class="lead-field"></label>
             </div>
           </fieldset>
           <fieldset class="span-2 form-box" id="c-ended-box">
@@ -397,6 +396,25 @@
             </div>
           </fieldset>
         </div>
+      </section>
+
+      <!-- ===== Các lần điều chỉnh thông tin Giấy phép ===== -->
+      <section class="cpane" data-pane="adjustments" hidden>
+        <div class="pane-head">
+          <p class="muted small">Mỗi lần điều chỉnh thông tin trên Giấy phép là một dòng. Dòng mới nhất nằm trên cùng.</p>
+          <button type="button" class="btn small lead-only" data-add="adjustments">+ Thêm lần điều chỉnh</button>
+        </div>
+        <div class="table-wrap"><table class="sub-table"><thead><tr>
+          <th>Lần thứ</th><th>Ngày điều chỉnh</th><th>Số GP sau điều chỉnh</th><th>Nội dung điều chỉnh</th><th>Trước → sau</th><th>Văn bản</th><th></th>
+        </tr></thead><tbody id="adjustments-body"></tbody></table></div>
+        <fieldset class="form-box" style="margin-top:14px">
+          <legend>Lần điều chỉnh gần nhất ghi trên hồ sơ</legend>
+          <div class="form-grid">
+            <p class="muted small span-2">Hai ô này là giá trị hiện hành của hồ sơ (dùng cho thẻ Tổng quan và xuất Excel); bảng trên là lịch sử đầy đủ.</p>
+            <label>Lần điều chỉnh thứ<input id="c-adjust_times" class="lead-field"></label>
+            <label>Ngày điều chỉnh<input type="date" id="c-adjust_date" class="lead-field"></label>
+          </div>
+        </fieldset>
       </section>
 
       <!-- ===== Tên & mã số ===== -->
@@ -637,6 +655,32 @@
 </dialog>
 
 <!-- ===================== MODAL CƠ SỞ ĐÀO TẠO ===================== -->
+<dialog id="adjust-dialog" class="modal">
+  <form id="adjust-form" method="dialog">
+    <div class="modal-head"><h2 id="adjust-dialog-title">Lần điều chỉnh thông tin Giấy phép</h2>
+      <button type="button" class="btn ghost" data-close>✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="aj-id"><input type="hidden" id="aj-company_id">
+      <div class="form-grid">
+        <label>Lần điều chỉnh thứ<input id="aj-times" class="lead-field" placeholder="VD: 3"></label>
+        <label>Ngày điều chỉnh<input type="date" id="aj-adjust_date" class="lead-field"></label>
+        <label class="span-2">Số Giấy phép sau điều chỉnh<input id="aj-license_number" class="lead-field"></label>
+        <label class="span-2">Nội dung điều chỉnh<textarea id="aj-content" rows="2" class="lead-field" placeholder="VD: Điều chỉnh người đại diện theo pháp luật"></textarea></label>
+        <label class="span-2">Thông tin trước điều chỉnh<textarea id="aj-old_value" rows="2" class="lead-field"></textarea></label>
+        <label class="span-2">Thông tin sau điều chỉnh<textarea id="aj-new_value" rows="2" class="lead-field"></textarea></label>
+        <label>Văn bản căn cứ (số)<input id="aj-doc_number" class="lead-field"></label>
+        <label>Ngày văn bản<input type="date" id="aj-doc_date" class="lead-field"></label>
+        <label class="span-2">Ghi chú<textarea id="aj-note" rows="2" class="lead-field"></textarea></label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button type="button" class="btn danger lead-only" id="delete-adjust-btn" hidden>Xóa</button>
+      <div class="spacer"></div><button type="button" class="btn ghost" data-close>Đóng</button>
+      <button type="submit" class="btn primary lead-only">Lưu</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="facility-dialog" class="modal">
   <form id="facility-form" method="dialog">
     <div class="modal-head"><h2 id="facility-dialog-title">Cơ sở đào tạo</h2>
@@ -834,8 +878,8 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=18"></script>
-<script src="js/app.js?v=18"></script>
+<script src="js/config.js?v=19"></script>
+<script src="js/app.js?v=19"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>
