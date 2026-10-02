@@ -187,6 +187,9 @@ td .nowrap, .nowrap { white-space: nowrap; }
 .tag.in_progress { background: color-mix(in srgb, var(--series-1) 15%, transparent); color: var(--primary); }
 .tag.done { background: color-mix(in srgb, var(--good) 15%, transparent); color: var(--good-ink); }
 .tag.cancelled { background: var(--surface-2); color: var(--muted); text-decoration: line-through; }
+.tag.submit1 { background: color-mix(in srgb, var(--warning) 20%, transparent); color: var(--warning-ink); }
+.tag.submit2 { background: color-mix(in srgb, var(--series-2) 18%, transparent); color: var(--series-2); }
+.tag.submit3 { background: color-mix(in srgb, var(--series-3) 20%, transparent); color: var(--series-3); }
 .tag.supplement { background: color-mix(in srgb, var(--warning) 22%, transparent); color: var(--warning-ink); }
 .tag.license { background: color-mix(in srgb, var(--series-2) 16%, transparent); color: var(--series-2); }
 .tag.update { background: color-mix(in srgb, var(--series-3) 16%, transparent); color: var(--series-3); }

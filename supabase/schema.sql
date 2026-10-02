@@ -57,8 +57,9 @@ create table if not exists public.tasks (
   deadline      date,                         -- Thời hạn xử lý
   handler1      uuid references public.profiles(id), -- Phụ trách mức 1 (chính)
   handler2      uuid references public.profiles(id), -- Phụ trách mức 2 (phối hợp)
-  status        text not null default 'new'
-                check (status in ('new','in_progress','done','cancelled')),
+  status        text not null default 'in_progress'
+                -- Danh sach nhan tieng Viet o window.TASK_STATUSES trong js/config.js
+                check (status in ('in_progress','submit_dept','submit_cuc','submit_bo','done','cancelled')),
   progress      int  not null default 0 check (progress between 0 and 100),
   progress_note text,                         -- Ghi chú tiến độ
   result        text,                         -- Kết quả xử lý / số VB đi
@@ -129,12 +130,11 @@ begin
   end if;
 
   -- Tự động đồng bộ trạng thái với tiến độ
-  if new.progress = 100 and new.status in ('new','in_progress') then
+  -- (Đang xử lý + 100% thì coi là Hoàn thành; các trạng thái "Trình …" thì giữ nguyên)
+  if new.progress = 100 and new.status = 'in_progress' then
     new.status := 'done';
   elsif new.status = 'done' and new.progress < 100 then
     new.progress := 100;
-  elsif new.progress > 0 and new.status = 'new' then
-    new.status := 'in_progress';
   end if;
   return new;
 end $$;
@@ -143,6 +143,14 @@ drop trigger if exists tasks_before_write on public.tasks;
 create trigger tasks_before_write
   before insert or update on public.tasks
   for each row execute function public.tasks_before_write();
+
+-- Nang cap bo trang thai cong viec (2026-10-02): bo 'new', them 3 muc trinh.
+-- DML phai dat SAU phan tao lai trigger o tren.
+alter table public.tasks drop constraint if exists tasks_status_check;
+update public.tasks set status = 'in_progress' where status = 'new';
+alter table public.tasks alter column status set default 'in_progress';
+alter table public.tasks add constraint tasks_status_check
+  check (status in ('in_progress','submit_dept','submit_cuc','submit_bo','done','cancelled'));
 
 -- Quy loại việc cũ về nhóm "Doanh nghiệp" (an toàn khi chạy lại)
 update public.tasks set category = 'Doanh nghiệp',

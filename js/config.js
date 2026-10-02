@@ -9,6 +9,16 @@ window.APP_CONFIG = {
   SOON_DAYS: 3, // số ngày trước hạn để cảnh báo "sắp đến hạn"
 };
 
+// Trạng thái công việc / văn bản đến (value là mã lưu trong DB — đổi label tự do, đừng đổi value khi đã có dữ liệu)
+window.TASK_STATUSES = [
+  { value: "in_progress", label: "Đang xử lý",         cls: "in_progress" },
+  { value: "submit_dept", label: "Trình Phòng",        cls: "submit1" },
+  { value: "submit_cuc",  label: "Trình Lãnh đạo Cục", cls: "submit2" },
+  { value: "submit_bo",   label: "Trình Lãnh đạo Bộ",  cls: "submit3" },
+  { value: "done",        label: "Hoàn thành",         cls: "done",      final: true },
+  { value: "cancelled",   label: "Hủy",                cls: "cancelled", final: true },
+];
+
 // Danh sách dùng cho module Hồ sơ Giấy phép (sửa tự do; value là mã lưu trong DB, không đổi sau khi đã có dữ liệu)
 window.LICENSE_STATUSES = [
   { value: "received",   label: "Tiếp nhận",        cls: "new" },

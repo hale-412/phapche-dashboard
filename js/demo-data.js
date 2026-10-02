@@ -27,7 +27,7 @@
       tasks.push({ id: i + 1, doc_number: `${1200 + i}/UBND-NC`, doc_date: d(-10 - i), received_date: d(-9 - i), sender: ["UBND tỉnh", "Sở Tư pháp", "Bộ LĐTBXH", "Thanh tra tỉnh"][i % 4],
         category: ["Văn bản đến", "Thẩm định", "Góp ý dự thảo", "Kiểm tra"][i % 4], content: `Về việc xử lý hồ sơ số ${i + 1} theo đề nghị của đơn vị liên quan, rà soát và tham mưu lãnh đạo`,
         deadline: i % 7 === 6 ? null : d(off), handler1: uid((i % 13) + 1), handler2: i % 3 === 0 ? uid(((i + 5) % 13) + 1) : null,
-        status: i % 5 === 4 ? "done" : i % 2 ? "in_progress" : "new", progress: i % 5 === 4 ? 100 : (i * 15) % 100, progress_note: i % 2 ? "Đã dự thảo" : null,
+        status: ["in_progress", "submit_dept", "submit_cuc", "submit_bo", "done"][i % 5], progress: i % 5 === 4 ? 100 : (i * 15) % 100, progress_note: i % 2 ? "Đã dự thảo" : null,
         result: null, priority: i % 8 === 0 ? "urgent" : "normal", created_by: uid(1), created_at: now(), updated_at: now() });
     }
     const companies = ["Công ty CP Nhân lực Việt Á", "Công ty TNHH Cung ứng lao động Hoàng Long", "Công ty CP XKLĐ Sao Việt", "Công ty TNHH Nhân lực Đại Dương", "Công ty CP Đầu tư và Nhân lực Thăng Long", "Công ty TNHH Việc làm Toàn cầu", "Công ty CP Nhân lực Quốc tế Bắc Á", "Công ty TNHH Phát triển nguồn nhân lực Miền Trung"];
@@ -112,9 +112,8 @@
   function syncUpdate(u) { if (u.status === "done" && !u.completed_date) u.completed_date = new Date().toISOString().slice(0, 10); }
   function syncLicense(l) { if (l.status === "issued" && !l.issued_date) l.issued_date = new Date().toISOString().slice(0, 10); }
   function syncStatus(t) {
-    if (t.progress === 100 && (t.status === "new" || t.status === "in_progress")) t.status = "done";
+    if (t.progress === 100 && t.status === "in_progress") t.status = "done";
     else if (t.status === "done" && t.progress < 100) t.progress = 100;
-    else if (t.progress > 0 && t.status === "new") t.status = "in_progress";
   }
 
   function builder(name) {
@@ -130,7 +129,7 @@
         const hit = () => rows.filter((r) => filters.every((f) => f(r)));
         if (op === "insert") {
           const list = (Array.isArray(payload) ? payload : [payload]).map((pl) => {
-            const t = { ...(name === "tasks" ? { status: "new", progress: 0 } : {}), ...pl, id: nextId(rows), created_by: me().id, created_at: now(), updated_at: now() };
+            const t = { ...(name === "tasks" ? { status: "in_progress", progress: 0 } : {}), ...pl, id: nextId(rows), created_by: me().id, created_at: now(), updated_at: now() };
             if (name === "tasks") { syncStatus(t); rows.push(t); logChange(null, t); }
             else if (name === "licenses") { syncLicense(t); rows.push(t); logLicense(null, t); }
             else if (name === "company_updates") { syncUpdate(t); rows.push(t); logUpdate(null, t); }
