@@ -1011,7 +1011,8 @@
       const key = M.keyOf(o);
       if (seen.has(key)) return; seen.add(key);                             // trùng trong cùng file → lấy dòng đầu
       const hit = matchExisting(o);
-      if (hit) updates.push({ id: hit.id, data: o });
+      // Chụp bản sao dòng cũ để còn ghi được giá trị cũ vào lịch sử
+      if (hit) updates.push({ id: hit.id, data: o, before: { ...hit } });
       else inserts.push({ ...(M.defaults || {}), ...o });                 // mac dinh chi ap cho dong them moi
     });
     let done = 0, failed = 0; const total = inserts.length + updates.length;
@@ -1020,13 +1021,22 @@
       if (error) { failed += Math.min(100, inserts.length - i); showImpError("Lỗi khi thêm: " + error.message); } else done += Math.min(100, inserts.length - i);
       prog(`Đang nhập… ${done}/${total}`);
     }
+    const evRows = [];
+    const impRef = { doc_number: null, doc_date: null, note: "Cập nhật bằng chức năng nhập từ Excel" };
     for (let i = 0; i < updates.length; i += 20) {
-      const res = await Promise.all(updates.slice(i, i + 20).map((u) => state.sb.from(M.table).update(u.data).eq("id", u.id)));
-      res.forEach((r) => (r.error ? failed++ : done++));
+      const batch = updates.slice(i, i + 20);
+      const res = await Promise.all(batch.map((u) => state.sb.from(M.table).update(u.data).eq("id", u.id)));
+      res.forEach((r, j) => {
+        if (r.error) { failed++; return; }
+        done++;
+        // Hồ sơ doanh nghiệp: ghi lại giá trị cũ + thời điểm thay đổi
+        if (M.table === "companies") evRows.push(...changeRows(batch[j].id, batch[j].before, batch[j].data, TRACKED, impRef, "import"));
+      });
       prog(`Đang nhập… ${done}/${total}`);
     }
-    prog(`Xong: ${done} thành công${failed ? `, ${failed} lỗi` : ""}`);
-    toast(`Đã nhập ${done} ${M.unit}${failed ? `, ${failed} lỗi` : ""}`, failed > 0);
+    const nEv = await insertEvents(evRows);
+    prog(`Xong: ${done} thành công${failed ? `, ${failed} lỗi` : ""}${nEv ? `, ghi ${nEv} thay đổi vào lịch sử` : ""}`);
+    toast(`Đã nhập ${done} ${M.unit}${failed ? `, ${failed} lỗi` : ""}${nEv ? ` · ${nEv} thay đổi vào lịch sử` : ""}`, failed > 0);
     await loadAll();
     btn.disabled = false;
     if (!failed) { $("#import-dialog").close(); switchView(M.view); }
@@ -1350,6 +1360,7 @@
   // Trường hồ sơ DN thuộc nhóm nào trên dòng thời gian
   function groupOfField(k) {
     if (!k) return "other";
+    if (k !== "all" && TGROUPS.some((g) => g.key === k)) return k;   // event cua bang con ghi san khoa nhom
     if (/^deposit_/.test(k)) return "deposit";
     if (k === "legal_rep") return "rep";
     if (/^training_/.test(k)) return "facility";
@@ -1439,6 +1450,9 @@
         row("Số giấy phép", dash(c.license_number)) +
         row("Ngày cấp", c.license_date ? fmtDate(c.license_date) : dash("")) +
         row("Trạng thái", `<span class="tag ${st.cls}">${esc(st.label)}</span>`) +
+        row("Điều chỉnh thông tin GP", c.adjust_times || c.adjust_date
+          ? `Lần điều chỉnh thứ <b>${esc(c.adjust_times || "—")}</b>${c.adjust_date ? ` · ngày <b>${fmtDate(c.adjust_date)}</b>` : ""}`
+          : dash("")) +
         (c.status === "ended"
           ? row("Chấm dứt", dash([c.ended_type, c.ended_year].filter(Boolean).join(" · ")))
           : ""))}
@@ -1663,27 +1677,80 @@
   function docRef() {
     return { doc_number: $("#c-ev-doc_number").value.trim() || null, doc_date: $("#c-ev-doc_date").value || null, note: $("#c-ev-note").value.trim() || null };
   }
-  async function logCompanyChanges(companyId, before, after, ref) {
+  // Sinh các dòng nhật ký cho những trường có thay đổi (chỉ so sánh các khóa trong `keys`)
+  function changeRows(companyId, before, after, keys, ref, source) {
     const rows = [];
-    TRACKED.forEach((k) => {
+    keys.forEach((k) => {
+      if (!(k in after)) return;                       // nhập Excel chỉ cập nhật các cột được chọn
       const o = normVal(before ? before[k] : ""), n = normVal(after[k]);
       if (o === n) return;
       rows.push({
         company_id: companyId, event_date: ref.doc_date || todayISO(), kind: "change",
         field: k, field_label: labelOf(k), old_value: o || null, new_value: n || null,
-        doc_number: ref.doc_number, doc_date: ref.doc_date, note: ref.note, source: "auto",
+        doc_number: ref.doc_number, doc_date: ref.doc_date, note: ref.note, source: source || "auto",
       });
     });
+    return rows;
+  }
+
+  // Ghi nhật ký theo lô, chia nhỏ 200 dòng/lần
+  async function insertEvents(rows) {
     if (!rows.length) return 0;
-    const { error } = await state.sb.from("company_events").insert(rows);
-    if (error) { toast("Không ghi được lịch sử: " + error.message, true); return 0; }
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await state.sb.from("company_events").insert(rows.slice(i, i + 200));
+      if (error) { toast("Không ghi được lịch sử: " + error.message, true); return i; }
+    }
     return rows.length;
+  }
+
+  async function logCompanyChanges(companyId, before, after, ref) {
+    return insertEvents(changeRows(companyId, before, after, TRACKED, ref, "auto"));
   }
 
   // Gợi ý số văn bản đã có của chính doanh nghiệp này
   function fillEventDocList(c) {
     const list = c && c.tax_code ? state.tasks.filter((t) => t.tax_code === c.tax_code && t.doc_number) : [];
     $("#c-ev-doc-list").innerHTML = list.map((t) => `<option value="${esc(t.doc_number)}">${esc(t.content || "")}</option>`).join("");
+  }
+
+  // Nhóm trên dòng thời gian + trường dùng làm tên gọi của từng bảng con
+  const SUB_GROUP = { reps: "rep", facilities: "facility", violations: "violation", inspections: "inspection" };
+  const SUB_NAME  = { reps: "full_name", facilities: "name", violations: "decision_number", inspections: "decision_number" };
+
+  // Nhãn tiếng Việt của một trường trong hộp thoại con — lấy luôn từ thẻ <label> trên giao diện
+  function subLabel(s, k) {
+    const el = $("#" + s.pre + k);
+    const lb = el && el.closest("label");
+    if (!lb) return k;
+    const t = [].filter.call(lb.childNodes, (n) => n.nodeType === 3).map((n) => n.textContent).join(" ").replace(/\s+/g, " ").trim();
+    return t || k;
+  }
+
+  const subTitle = (kind, rec) => (rec && (rec[SUB_NAME[kind]] || "")) || "#" + (rec?.id || "");
+
+  // Toàn bộ nội dung một bản ghi con, dùng khi xóa (để còn giữ lại được thông tin cũ)
+  function subDump(s, rec) {
+    return subFields(s).map((k) => (normVal(rec[k]) ? subLabel(s, k) + ": " + normVal(rec[k]) : "")).filter(Boolean).join(" · ");
+  }
+
+  // Ghi nhật ký thay đổi của 1 bản ghi con vào company_events
+  async function logSubChanges(kind, before, after, id) {
+    const s = SUBS[kind], g = SUB_GROUP[kind];
+    if (!g) return 0;                                       // bảng company_events thì không tự ghi lịch sử của chính nó
+    const name = subTitle(kind, before || after);
+    const ref = { doc_number: after.doc_number || null, doc_date: after.doc_date || null, note: null };
+    const rows = [];
+    subFields(s).forEach((k) => {
+      const o = normVal(before ? before[k] : ""), n = normVal(after[k]);
+      if (o === n) return;
+      rows.push({
+        company_id: after.company_id, event_date: ref.doc_date || todayISO(), kind: "change",
+        field: g, field_label: `${s.head} · ${name} · ${subLabel(s, k)}`, title: name,
+        old_value: o || null, new_value: n || null,
+        doc_number: ref.doc_number, doc_date: ref.doc_date, source: "auto",
+      });
+    });
+    return insertEvents(rows);
   }
 
   // ---------- CRUD dùng chung cho 5 bảng con ----------
@@ -1723,10 +1790,13 @@
     s.date.forEach((k) => (p[k] = valOf(s, k) || null));
     s.num.forEach((k) => (p[k] = parseVnd(valOf(s, k))));
     Object.assign(p, s.extra || {});
+    // Chụp bản sao bản ghi cũ TRƯỚC khi lưu (không giữ tham chiếu — sẽ bị ghi đè)
+    const prev = id ? { ...(state.sub[kind].find((x) => String(x.id) === String(id)) || {}) } : null;
     const q = id ? state.sb.from(s.table).update(p).eq("id", id) : state.sb.from(s.table).insert(p);
     const { error } = await q;
     if (error) { toast(error.message, true); return; }
-    toast(id ? "Đã lưu" : "Đã thêm");
+    const n = id ? await logSubChanges(kind, prev, p, id) : 0;
+    toast(id ? (n ? `Đã lưu · ghi ${n} thay đổi vào lịch sử` : "Đã lưu") : "Đã thêm");
     $(s.dlg).close();
     await loadCompanySubs(p.company_id);
   }
@@ -1736,8 +1806,16 @@
     const id = $("#" + s.pre + "id").value;
     const cid = +$("#" + s.pre + "company_id").value;
     if (!id || !confirm("Xóa mục này khỏi hồ sơ doanh nghiệp?")) return;
+    const prev = { ...(state.sub[kind].find((x) => String(x.id) === String(id)) || {}) };
     const { error } = await state.sb.from(s.table).delete().eq("id", id);
     if (error) { toast(error.message, true); return; }
+    // Giữ lại dấu vết: nội dung bản ghi vừa xóa + thời điểm xóa
+    if (SUB_GROUP[kind]) await insertEvents([{
+      company_id: cid, event_date: todayISO(), kind: "change", field: SUB_GROUP[kind],
+      field_label: `${s.head} · ${subTitle(kind, prev)} · Xóa khỏi hồ sơ`, title: subTitle(kind, prev),
+      old_value: subDump(s, prev) || null, new_value: null,
+      doc_number: prev.doc_number || null, doc_date: prev.doc_date || null, source: "auto",
+    }]);
     toast("Đã xóa"); $(s.dlg).close(); await loadCompanySubs(cid);
   }
 
