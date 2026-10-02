@@ -667,10 +667,10 @@
     }).join("") + (list.length === 0 && state.companies.length ? `<tr><td colspan="8" class="muted center">Không có doanh nghiệp nào phù hợp.</td></tr>` : "");
   }
 
-  const C_TEXT = ["tax_code", "name", "short_name", "en_name", "legal_rep", "company_type", "address", "province", "website", "phone", "fax", "email", "training_facility",
+  const C_TEXT = ["tax_code", "reg_place", "name", "short_name", "en_name", "legal_rep", "company_type", "address", "province", "website", "phone", "fax", "email", "training_facility",
     "training_address", "staff_list", "markets", "deposit_bank", "deposit_account", "deposit_ref",
     "license_number", "first_license_number", "nd38_times", "law69_number", "adjust_times", "ds101", "note", "ended_year", "ended_type", "ended_reason", "ended_ref"];
-  const C_DATE = ["license_date", "first_license_date", "nd38_date", "law69_date", "adjust_date", "deposit_date"];
+  const C_DATE = ["reg_first_date", "license_date", "first_license_date", "nd38_date", "law69_date", "adjust_date", "deposit_date"];
   const C_NUM = ["charter_capital", "deposit_amount"];
 
   // Vốn điều lệ: chấp nhận "20000000000", "20.000.000.000", "20 tỷ", "500 triệu"
@@ -1395,6 +1395,25 @@
     </section>`;
   }
 
+  // Mot nhom nho trong the tong quan (co tieu de rieng + nut nhay sang tab)
+  function ovSub(title, tab, rowsHtml, note) {
+    return `<div class="ov-sub">
+      <div class="ov-subhead"><h4>${esc(title)}</h4>
+        ${tab ? `<button type="button" class="btn ghost small" data-goto="${tab}">Cập nhật ›</button>` : ""}</div>
+      <dl class="ov-grid">${rowsHtml}</dl>
+      ${note ? `<p class="muted small">${note}</p>` : ""}
+    </div>`;
+  }
+
+  // The tong quan gom nhieu nhom nho
+  function ovCardSubs(title, tab, subsHtml, cls) {
+    return `<section class="ov-card${cls ? " " + cls : ""}">
+      <div class="ov-head"><h3>${esc(title)}</h3>
+        ${tab ? `<button type="button" class="btn ghost small" data-goto="${tab}">Cập nhật ›</button>` : ""}</div>
+      ${subsHtml}
+    </section>`;
+  }
+
   function renderOverview() {
     const c = state.cur;
     const box = $("#company-overview");
@@ -1424,24 +1443,47 @@
           ? row("Chấm dứt", dash([c.ended_type, c.ended_year].filter(Boolean).join(" · ")))
           : ""))}
 
-      ${ovCard("Tên doanh nghiệp & mã số", "name",
-        row("Tên đầy đủ", dash(c.name)) +
-        row("Tên viết tắt", dash(c.short_name)) +
-        row("Tên tiếng Anh", dash(c.en_name)) +
-        row("Mã số doanh nghiệp", dash(c.tax_code)))}
+      ${ovCard("1. Tên doanh nghiệp", "name",
+        row("Tên bằng tiếng Việt", dash(c.name)) +
+        row("Tên bằng tiếng nước ngoài", dash(c.en_name)) +
+        row("Tên viết tắt", dash(c.short_name)))}
 
-      ${ovCard("Địa chỉ & liên hệ", "address",
-        row("Trụ sở chính", dash(c.address)) +
-        row("Tỉnh / Thành phố", dash(c.province)) +
-        row("Điện thoại", dash(c.phone)) +
-        row("Email", dash(c.email)) +
-        row("Trang thông tin điện tử", c.website ? esc(c.website) : dash("")))}
+      ${ovCard("2. Mã số doanh nghiệp", "name",
+        row("Mã số doanh nghiệp", dash(c.tax_code)) +
+        row("Đăng ký lần đầu", c.reg_first_date ? fmtDate(c.reg_first_date) : dash("")) +
+        row("Nơi cấp", dash(c.reg_place)))}
 
-      ${ovCard("Thị trường hoạt động", "markets", row(`${mk.length ? mk.length + " thị trường" : "Thị trường"}`, bullets(mk)))}
+      ${reps.length
+        ? ovCardSubs("3. Người đại diện theo pháp luật", "reps",
+            reps.map((r) => ovSub(r.full_name || "Người đại diện", null,
+              row("Chức danh", dash(r.title)) +
+              row("Số định danh", dash(r.id_number)) +
+              (r.from_date ? row("Giữ chức từ", fmtDate(r.from_date)) : ""))).join("") +
+            `<p class="muted small">${reps.length} người đang giữ chức · tổng ${state.sub.reps.length} lượt trong lịch sử</p>`)
+        : ovCard("3. Người đại diện theo pháp luật", "reps",
+            row("Người đại diện", dash(c.legal_rep)) +
+            row("Chức danh", dash("")) +
+            row("Số định danh", dash("")),
+            "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép.")}
 
-      ${ovCard("Vốn điều lệ & loại hình", "capital",
-        row("Vốn điều lệ", c.charter_capital ? `<b>${esc(fmtVnd(c.charter_capital))}</b>` : dash("")) +
-        row("Loại hình", dash(c.company_type)))}
+      ${ovCardSubs("4. Địa điểm hoạt động", null,
+        ovSub("Trụ sở chính & liên hệ", "address",
+          row("Trụ sở chính", dash(c.address)) +
+          row("Tỉnh / Thành phố", dash(c.province)) +
+          row("Điện thoại", dash(c.phone)) +
+          row("Fax", dash(c.fax)) +
+          row("Email", dash(c.email))) +
+        ovSub("Cơ sở vật chất đào tạo GDĐH", "facilities",
+          facs.length
+            ? facs.map((f, i) => row(`CSVC ${i + 1}${f.name ? " · " + f.name : ""}`,
+                dash(f.address) + (f.own_type ? ` <span class="chip">${esc(f.own_type)}</span>` : ""))).join("")
+            : row("Tên cơ sở đào tạo", dash(c.training_facility)) + row("Địa chỉ", dash(c.training_address)),
+          facs.length ? `${facs.length} cơ sở đang sử dụng · tổng ${state.sub.facilities.length} cơ sở trong lịch sử`
+                      : "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép."),
+        "ov-wide")}
+
+      ${ovCard("5. Trang thông tin điện tử", "address",
+        row("Địa chỉ trang TTĐT", c.website ? esc(c.website) : dash("")))}
 
       ${ovCard("Ký quỹ", "deposit",
         row("Ngân hàng", dash(c.deposit_bank)) +
@@ -1449,22 +1491,15 @@
         row("Số tiền ký quỹ", c.deposit_amount ? `<b>${esc(fmtVnd(c.deposit_amount))}</b>` : dash("")) +
         row("Ngày ký quỹ", c.deposit_date ? fmtDate(c.deposit_date) : dash("")))}
 
-      ${ovCard("Người đại diện theo pháp luật", "reps",
-        reps.length
-          ? reps.map((r) => row(r.title || "Người đại diện", `<b>${esc(r.full_name)}</b>${r.from_date ? ` <span class="muted">(từ ${fmtDate(r.from_date)})</span>` : ""}`)).join("")
-          : row("Ghi trên Giấy phép", dash(c.legal_rep)),
-        reps.length ? `${reps.length} người đang giữ chức · tổng ${state.sub.reps.length} lượt trong lịch sử`
-                    : "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép.")}
-
       ${ovCard("Danh sách nhân viên nghiệp vụ", "staff",
         row(staff.length ? staff.length + " người" : "Nhân viên nghiệp vụ", bullets(staff)))}
 
-      ${ovCard("Cơ sở vật chất đào tạo GDĐH", "facilities",
-        facs.length
-          ? facs.map((f) => row(f.name, dash(f.address) + (f.own_type ? ` <span class="chip">${esc(f.own_type)}</span>` : ""))).join("")
-          : row("Tên cơ sở đào tạo", dash(c.training_facility)) + row("Địa chỉ", dash(c.training_address)),
-        facs.length ? `${facs.length} cơ sở đang sử dụng · tổng ${state.sub.facilities.length} cơ sở trong lịch sử`
-                    : "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép.")}
+      ${ovCard("Vốn điều lệ & loại hình doanh nghiệp", "capital",
+        row("Vốn điều lệ", c.charter_capital ? `<b>${esc(fmtVnd(c.charter_capital))}</b>` : dash("")) +
+        row("Loại hình", dash(c.company_type)))}
+
+      ${ovCard("Thị trường hoạt động", "markets",
+        row(`${mk.length ? mk.length + " thị trường" : "Thị trường"}`, bullets(mk)))}
       </div>`;
   }
   function renderCompanyPanes() {

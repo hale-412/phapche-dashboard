@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>[Dùng thử] Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=16">
+<link rel="stylesheet" href="css/style.css?v=17">
 </head>
 <body>
 
@@ -411,9 +411,11 @@
             </div>
           </fieldset>
           <fieldset class="span-2 form-box">
-            <legend>Mã số doanh nghiệp</legend>
+            <legend>Mã số doanh nghiệp &amp; Giấy chứng nhận ĐKDN</legend>
             <div class="form-grid">
               <label class="span-2">Mã số doanh nghiệp<input id="c-tax_code" class="lead-field" placeholder="10 chữ số"></label>
+              <label>Đăng ký lần đầu<input id="c-reg_first_date" type="date" class="lead-field"></label>
+              <label>Nơi cấp<input id="c-reg_place" class="lead-field" placeholder="VD: Phòng ĐKKD - Sở KH&amp;ĐT TP Hà Nội"></label>
             </div>
           </fieldset>
           <fieldset class="span-2 form-box">
@@ -835,13 +837,13 @@
 <!-- CHẾ ĐỘ DÙNG THỬ TRÊN MÁY: dữ liệu lưu trong localStorage của trình duyệt này.
      ?sample=1 nạp dữ liệu mẫu · ?reset=1 xóa hết · ?user=N xem với vai người thứ N trong danh sách -->
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=16"></script>
+<script src="js/config.js?v=17"></script>
 <script>
   window.MOCK_USER = +(new URLSearchParams(location.search).get("user") || 1);
   window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
 </script>
-<script src="js/demo-data.js?v=16"></script>
-<script src="js/app.js?v=16"></script>
+<script src="js/demo-data.js?v=17"></script>
+<script src="js/app.js?v=17"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>
