@@ -7,7 +7,10 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
-  const STATUS = { new: "Mới", in_progress: "Đang xử lý", done: "Hoàn thành", cancelled: "Hủy" };
+  const TSTAT = window.TASK_STATUSES || [];
+  const TSTAT_MAP = Object.fromEntries(TSTAT.map((s) => [s.value, s]));
+  const TSTAT_DEF = TSTAT[0]?.value || "in_progress";             // trạng thái mặc định khi thêm mới
+  const STATUS = Object.fromEntries(TSTAT.map((s) => [s.value, s.label]));
   const ACTION = { create: "Tạo việc", reassign: "Điều chuyển", status: "Trạng thái", progress: "Tiến độ", edit: "Sửa", delete: "Xóa" };
   const LSTAT = window.LICENSE_STATUSES || [];
   const LSTAT_MAP = Object.fromEntries(LSTAT.map((s) => [s.value, s]));
@@ -44,8 +47,13 @@
   const daysLeft = (t) => (t.deadline ? Math.round((new Date(t.deadline) - new Date(todayISO())) / 86400000) : null);
   const isLicense = (t) => t.kind === "license";
   const isUpdate = (t) => t.kind === "update";
-  const isOpen = (t) => (isLicense(t) ? !LSTAT_MAP[t.status]?.final : isUpdate(t) ? !USTAT_MAP[t.status]?.final : t.status === "new" || t.status === "in_progress");
-  const statusLabel = (t) => (isLicense(t) ? LSTAT_MAP[t.status]?.label || t.status : isUpdate(t) ? USTAT_MAP[t.status]?.label || t.status : STATUS[t.status]);
+  const isOpen = (t) => (isLicense(t) ? !LSTAT_MAP[t.status]?.final : isUpdate(t) ? !USTAT_MAP[t.status]?.final : !TSTAT_MAP[t.status]?.final);
+  // Nhật ký của DB ghi mã trạng thái (vd "in_progress → submit_cuc") — đổi sang nhãn tiếng Việt khi hiển thị
+  const CODE_LABEL = Object.fromEntries(TSTAT.concat(LSTAT, window.UPDATE_STATUSES || []).map((x) => [x.value, x.label]));
+  const CODE_RE = new RegExp("\\b(" + Object.keys(CODE_LABEL).join("|") + ")\\b", "g");
+  const prettyLog = (d) => String(d || "").replace(CODE_RE, (m) => CODE_LABEL[m] || m);
+
+  const statusLabel = (t) => (isLicense(t) ? LSTAT_MAP[t.status]?.label || t.status : isUpdate(t) ? USTAT_MAP[t.status]?.label || t.status : STATUS[t.status] || t.status);
   const isOverdue = (t) => isOpen(t) && daysLeft(t) !== null && daysLeft(t) < 0;
   const isSoon = (t) => isOpen(t) && daysLeft(t) !== null && daysLeft(t) >= 0 && daysLeft(t) <= CFG.SOON_DAYS;
   const nameOf = (id) => state.profiles.find((p) => p.id === id)?.full_name || "—";
@@ -207,7 +215,7 @@
     const t = state.tasks;
     const ym = todayISO().slice(0, 7);
     const tiles = [
-      { cls: "info", icon: "📂", label: "Đang xử lý", value: t.filter(isOpen).length, sub: `${t.filter((x) => x.status === "new").length} mới`, filter: { status: "open" } },
+      { cls: "info", icon: "📂", label: "Đang xử lý", value: t.filter(isOpen).length, sub: `${t.filter((x) => /^submit_/.test(x.status || "")).length} đang trình`, filter: { status: "open" } },
       { cls: "warn", icon: "⏳", label: `Sắp đến hạn (${CFG.SOON_DAYS} ngày)`, value: t.filter(isSoon).length, sub: `${t.filter((x) => isOpen(x) && daysLeft(x) === 0).length} hôm nay`, filter: { status: "open", due: "3d" } },
       { cls: "crit", icon: "⚠️", label: "Quá hạn", value: t.filter(isOverdue).length, sub: "cần xử lý ngay", filter: { status: "open", due: "overdue" } },
       { cls: "good", icon: "✅", label: "Hoàn thành tháng này", value: t.filter((x) => x.status === "done" && (x.updated_at || "").startsWith(ym)).length, sub: `tổng ${t.filter((x) => x.status === "done").length} hoàn thành`, filter: { status: "done" } },
@@ -344,7 +352,7 @@
         <td>${esc(nameOf(t.handler1))}</td>
         <td>${t.handler2 ? esc(nameOf(t.handler2)) : '<span class="muted">—</span>'}</td>
         <td><div class="progress"><div class="track"><div class="fill ${t.status === "done" ? "done" : ""}" style="width:${t.progress}%"></div></div><span>${t.progress}%</span></div></td>
-        <td><span class="tag ${t.status}">${STATUS[t.status]}</span></td>
+        <td><span class="tag ${TSTAT_MAP[t.status]?.cls || "new"}">${esc(statusLabel(t))}</span></td>
       </tr>`;
     }).join("");
   }
@@ -410,6 +418,12 @@
   function fillCompanySelect() {
     const dir = companyDir();
     $("#t-tax_code-list").innerHTML = [...dir].map(([c, n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join("");
+  }
+
+  function fillTaskSelects() {
+    const st = TSTAT.map((s) => `<option value="${s.value}">${esc(s.label)}</option>`).join("");
+    $("#f-status").innerHTML = `<option value="open">Đang mở (chưa hoàn thành)</option>` + st + `<option value="all">Tất cả</option>`;
+    $("#t-status").innerHTML = st;
   }
 
   function fillLicenseSelects() {
@@ -509,7 +523,7 @@
     if (l) {
       $("#license-history-list").innerHTML = `<li class="muted">Đang tải…</li>`;
       const { data } = await state.sb.from("license_logs").select("*").eq("license_id", l.id).order("created_at", { ascending: false });
-      $("#license-history-list").innerHTML = (data || []).map((g) => `<li><span class="when">${fmtDateTime(g.created_at)}</span><span><span class="who">${esc(nameOf(g.user_id))}</span> · ${ACTION[g.action] || g.action}: ${esc(g.detail)}</span></li>`).join("") || `<li class="muted">Chưa có</li>`;
+      $("#license-history-list").innerHTML = (data || []).map((g) => `<li><span class="when">${fmtDateTime(g.created_at)}</span><span><span class="who">${esc(nameOf(g.user_id))}</span> · ${ACTION[g.action] || g.action}: ${esc(prettyLog(g.detail))}</span></li>`).join("") || `<li class="muted">Chưa có</li>`;
     }
     dlg.showModal();
   }
@@ -815,7 +829,7 @@
     date: (v) => excelDate(v),
     person: (v) => personId(cellText(v)),
     int: (v) => { const n = parseInt(String(cellText(v)).replace(/[^\d-]/g, ""), 10); return isNaN(n) ? null : Math.max(0, Math.min(100, n)); },
-    status: (v) => byLabel(Object.entries(STATUS).map(([value, label]) => ({ value, label })), v, "new"),
+    status: (v) => byLabel(TSTAT, v, TSTAT_DEF),
     lstatus: (v) => byLabel(LSTAT, v, LSTAT[0]?.value || "received"),
     priority: (v) => (/khan|urgent/i.test(deAccent(v)) ? "urgent" : "normal"),
     category: (v) => cellText(v) || "Văn bản đến",
@@ -836,7 +850,7 @@
     tasks: {
       title: "Nhập văn bản / công việc từ Excel", table: "tasks", fields: () => TFIELDS, view: "tasks",
       unit: "văn bản", required: "content", requiredLabel: "Nội dung / Trích yếu", useStatusSelect: false,
-      defaults: { category: "Văn bản đến", status: "new", progress: 0, priority: "normal" },
+      defaults: { category: "Văn bản đến", status: TSTAT_DEF, progress: 0, priority: "normal" },
       hint: 'Chọn file .xlsx / .csv xuất ra từ nút <b>⬇ Xuất Excel (CSV)</b>, hoặc file theo dõi của phòng. Tên chuyên viên ở cột Phụ trách được khớp với tài khoản đã có; không khớp thì để trống, giao lại sau.',
       keyOf: (o) => (o.doc_number || "") + "|" + (o.content || "").slice(0, 60).toLowerCase(),
       match: (o) => (o.doc_number ? state.tasks.find((t) => t.doc_number && t.doc_number === o.doc_number) || null : null),
@@ -1062,7 +1076,7 @@
     $("#t-deadline").value = t?.deadline || "";
     $("#t-handler1").value = t?.handler1 || "";
     $("#t-handler2").value = t?.handler2 || "";
-    $("#t-status").value = t?.status || "new";
+    $("#t-status").value = t?.status || TSTAT_DEF;
     $("#t-progress").value = t?.progress ?? 0;
     $("#t-progress-val").textContent = (t?.progress ?? 0) + "%";
     $("#t-progress_note").value = t?.progress_note || "";
@@ -1079,7 +1093,7 @@
     if (t) {
       $("#history-list").innerHTML = `<li class="muted">Đang tải…</li>`;
       const { data } = await state.sb.from("task_logs").select("*").eq("task_id", t.id).order("created_at", { ascending: false });
-      $("#history-list").innerHTML = (data || []).map((l) => `<li><span class="when">${fmtDateTime(l.created_at)}</span><span><span class="who">${esc(nameOf(l.user_id))}</span> · ${ACTION[l.action] || l.action}: ${esc(l.detail)}</span></li>`).join("") || `<li class="muted">Chưa có</li>`;
+      $("#history-list").innerHTML = (data || []).map((l) => `<li><span class="when">${fmtDateTime(l.created_at)}</span><span><span class="who">${esc(nameOf(l.user_id))}</span> · ${ACTION[l.action] || l.action}: ${esc(prettyLog(l.detail))}</span></li>`).join("") || `<li class="muted">Chưa có</li>`;
     }
     dlg.showModal();
   }
@@ -1242,6 +1256,9 @@
       const li = e.target.closest(".list-item[data-id]");
       if (li) (li.dataset.kind === "license" ? openLicense : openTask)(+li.dataset.id);
     });
+
+    // Văn bản / công việc
+    fillTaskSelects();
 
     // Hồ sơ giấy phép
     fillLicenseSelects();

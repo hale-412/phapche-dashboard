@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=20">
+<link rel="stylesheet" href="css/style.css?v=21">
 </head>
 <body>
 
@@ -88,13 +88,8 @@
     <section id="view-tasks" class="view" hidden>
       <div class="filters">
         <input type="search" id="f-search" placeholder="Tìm số VB, nội dung, cơ quan gửi…">
-        <select id="f-status">
-          <option value="open">Đang mở (mới + đang xử lý)</option>
-          <option value="new">Mới</option>
-          <option value="in_progress">Đang xử lý</option>
-          <option value="done">Hoàn thành</option>
-          <option value="cancelled">Hủy</option>
-          <option value="all">Tất cả</option>
+        <select id="f-status"><!-- nạp từ window.TASK_STATUSES trong js/config.js -->
+          <option value="open">Đang mở (chưa hoàn thành)</option>
         </select>
         <select id="f-handler"><option value="">Mọi chuyên viên</option></select>
         <select id="f-due">
@@ -265,10 +260,7 @@
           <label>Phụ trách mức 2<select id="t-handler2" class="lead-field"></select></label>
         </div>
         <label>Trạng thái
-          <select id="t-status">
-            <option value="new">Mới</option><option value="in_progress">Đang xử lý</option>
-            <option value="done">Hoàn thành</option><option value="cancelled">Hủy</option>
-          </select>
+          <select id="t-status"><!-- nạp từ window.TASK_STATUSES trong js/config.js --></select>
         </label>
         <label>Tiến độ: <b id="t-progress-val">0%</b>
           <input type="range" id="t-progress" min="0" max="100" step="5" value="0">
@@ -878,8 +870,8 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=20"></script>
-<script src="js/app.js?v=20"></script>
+<script src="js/config.js?v=21"></script>
+<script src="js/app.js?v=21"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>
