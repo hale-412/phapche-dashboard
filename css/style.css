@@ -346,6 +346,11 @@ tr.group-row td .count { font-weight: 400; color: var(--muted); font-size: 12px;
 .ov-list { margin: 0; padding-left: 18px; }
 .ov-list li { font-size: 13px; }
 .ov-card > .small { margin: 8px 0 0; }
+.ov-sub + .ov-sub { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }
+.ov-subhead { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.ov-subhead h4 { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); flex: 1; }
+.ov-sub > .small { margin: 6px 0 0; }
+@media (min-width: 920px) { .ov-card.ov-wide { grid-column: span 2; } }
 
 @media (max-width: 560px) {
   .ov-row { grid-template-columns: 1fr; gap: 0; }

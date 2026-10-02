@@ -95,6 +95,8 @@ window.COMPANY_STATUSES = [
 // Trường dữ liệu doanh nghiệp + mẫu tiêu đề cột Excel để tự nhận diện khi nhập (regex, không phân biệt hoa thường)
 window.COMPANY_FIELDS = [
   { key: "tax_code",             label: "Mã số doanh nghiệp",       match: /msdn|mã số/i },
+  { key: "reg_first_date",       label: "Đăng ký lần đầu (ĐKDN)",   match: /đăng ký lần đầu/i, date: true },
+  { key: "reg_place",            label: "Nơi cấp ĐKDN",             match: /nơi cấp/i },
   { key: "name",                 label: "Tên công ty",              match: /tên công ty|tên doanh nghiệp|^tên dn/i },
   { key: "short_name",           label: "Tên viết tắt",             match: /viết tắt/i },
   { key: "en_name",              label: "Tên tiếng Anh",            match: /tiếng anh/i },
@@ -157,7 +159,7 @@ window.REP_TITLES = ["Tổng giám đốc", "Giám đốc", "Chủ tịch HĐQT"
 // Những trường của hồ sơ DN được ghi nhật ký khi thay đổi (khóa lấy từ COMPANY_FIELDS).
 // Bỏ trường nào khỏi danh sách này thì thay đổi của nó không vào lịch sử.
 window.TRACKED_COMPANY_FIELDS = [
-  "tax_code", "name", "short_name", "en_name", "company_type",
+  "tax_code", "reg_first_date", "reg_place", "name", "short_name", "en_name", "company_type",
   "legal_rep", "address", "province", "phone", "fax", "email", "website",
   "training_facility", "training_address",
   "charter_capital", "staff_list", "markets",

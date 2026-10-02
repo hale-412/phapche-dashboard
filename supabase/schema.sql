@@ -536,6 +536,8 @@ end $$;
 create table if not exists public.companies (
   id                   bigint generated always as identity primary key,
   tax_code             text,                        -- Mã số doanh nghiệp (có thể trống với DN cũ)
+  reg_first_date       date,                        -- Giấy chứng nhận ĐKDN: đăng ký lần đầu
+  reg_place            text,                        -- Giấy chứng nhận ĐKDN: nơi cấp
   name                 text not null,               -- Tên công ty
   short_name           text,                        -- Tên viết tắt
   en_name              text,                        -- Tên tiếng Anh
@@ -588,6 +590,9 @@ alter table public.companies add column if not exists deposit_account  text;
 alter table public.companies add column if not exists deposit_date     date;
 alter table public.companies add column if not exists deposit_ref      text;
 alter table public.companies add column if not exists markets         text;  -- Cac thi truong hoat dong (moi dong 1 thi truong)
+-- Nang cap DB da tao truoc 2026-10-02: thong tin Giay chung nhan DKDN
+alter table public.companies add column if not exists reg_first_date  date;
+alter table public.companies add column if not exists reg_place       text;
 
 create unique index if not exists companies_tax_code_uidx on public.companies(tax_code) where tax_code is not null;
 create index if not exists companies_name_idx     on public.companies(lower(name));
