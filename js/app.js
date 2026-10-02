@@ -1402,6 +1402,48 @@
   const lines = (s) => String(s || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
   const dash = (v) => (v === null || v === undefined || v === "" ? '<span class="muted">—</span>' : esc(v));
   const row = (k, v) => `<div class="ov-row"><dt>${esc(k)}</dt><dd>${v}</dd></div>`;
+
+  // Lịch sử thay đổi của từng trường hồ sơ DN: khóa trường → các event mới nhất trước
+  function changeMap() {
+    const m = new Map();
+    state.sub.events
+      .filter((e) => e.kind === "change" && e.field && (e.old_value || e.new_value))
+      .slice()
+      .sort((a, b) => (b.event_date || "").localeCompare(a.event_date || "") || (b.created_at || "").localeCompare(a.created_at || ""))
+      .forEach((e) => { if (!m.has(e.field)) m.set(e.field, []); m.get(e.field).push(e); });
+    return m;
+  }
+
+  // Giá trị cũ hiển thị cho đúng kiểu dữ liệu của trường
+  function showOld(k, v) {
+    if (!v) return "(trống)";
+    if (k === "status") return CSTAT_MAP[v]?.label || v;
+    if (C_DATE.includes(k)) return fmtDate(v);
+    if (C_NUM.includes(k)) return fmtVnd(v);
+    return String(v).split(/\r?\n/).map((x) => x.trim()).filter(Boolean).join(" · ");
+  }
+
+  // Dòng "<Tên trường> cũ: …" đặt ngay dưới giá trị hiện tại
+  function wasHtml(label, k) {
+    const list = (state.chg || new Map()).get(k);
+    if (!list || !list.length) return "";
+    const e = list[0];
+    return `<div class="was"><span class="was-k">${esc(label)} cũ:</span> ${esc(showOld(k, e.old_value))}` +
+      `<span class="muted"> (đổi ${e.event_date ? "ngày " + fmtDate(e.event_date) : "trước đó"}` +
+      `${e.doc_number ? " theo VB " + esc(e.doc_number) : ""}${list.length > 1 ? ` · còn ${list.length - 1} lần đổi trước` : ""})</span></div>`;
+  }
+
+  // "<Tên trường> cũ: …" lấy từ các bản ghi bảng con đã kết thúc (có Ngày kết thúc)
+  function oldHolders(label, rows, nameKey, subKey) {
+    if (!rows.length) return "";
+    const one = (r) => `${esc(r[nameKey] || "")}${r[subKey] ? " - " + esc(r[subKey]) : ""}` +
+      `<span class="muted"> (đến ${r.to_date ? fmtDate(r.to_date) : "—"})</span>`;
+    return `<div class="was"><span class="was-k">${esc(label)} cũ:</span> ${rows.slice(0, 3).map(one).join("; ")}` +
+      `${rows.length > 3 ? `<span class="muted"> · còn ${rows.length - 3} mục trước</span>` : ""}</div>`;
+  }
+
+  // Dòng tổng quan có kèm giá trị cũ (nếu trường đó từng bị sửa)
+  const rowC = (label, k, v) => row(label, v + wasHtml(label, k));
   const bullets = (arr) => (arr.length ? `<ul class="ov-list">${arr.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : '<span class="muted">—</span>');
 
   function ovCard(title, tab, rowsHtml, note) {
@@ -1445,6 +1487,9 @@
     const facs = state.sub.facilities.filter((f) => !f.to_date);
     const mk = lines(c.markets), staff = lines(c.staff_list);
     const adj = state.sub.adjustments[0] || null;        // lần điều chỉnh gần nhất (đã sắp giảm dần)
+    state.chg = changeMap();                             // để các dòng bên dưới kèm được giá trị cũ
+    const oldReps = state.sub.reps.filter((r) => r.to_date).sort((a, b) => (b.to_date || "").localeCompare(a.to_date || ""));
+    const oldFacs = state.sub.facilities.filter((f) => f.to_date).sort((a, b) => (b.to_date || "").localeCompare(a.to_date || ""));
 
     box.innerHTML = `
       <div class="ov-title">
@@ -1455,8 +1500,8 @@
       </div>
       <div class="ov-cards">
       ${ovCard("Giấy phép", "license",
-        row("Số giấy phép", dash(c.license_number)) +
-        row("Ngày cấp", c.license_date ? fmtDate(c.license_date) : dash("")) +
+        rowC("Số giấy phép", "license_number", dash(c.license_number)) +
+        rowC("Ngày cấp", "license_date", c.license_date ? fmtDate(c.license_date) : dash("")) +
         row("Trạng thái", `<span class="tag ${st.cls}">${esc(st.label)}</span>`) +
         row("Điều chỉnh thông tin GP", adj
           ? `Lần điều chỉnh thứ <b>${esc(adj.times || "—")}</b>${adj.adjust_date ? ` · ngày <b>${fmtDate(adj.adjust_date)}</b>` : ""}`
@@ -1470,14 +1515,14 @@
           : ""))}
 
       ${ovCard("1. Tên doanh nghiệp", "name",
-        row("Tên bằng tiếng Việt", dash(c.name)) +
-        row("Tên bằng tiếng nước ngoài", dash(c.en_name)) +
-        row("Tên viết tắt", dash(c.short_name)))}
+        rowC("Tên bằng tiếng Việt", "name", dash(c.name)) +
+        rowC("Tên bằng tiếng nước ngoài", "en_name", dash(c.en_name)) +
+        rowC("Tên viết tắt", "short_name", dash(c.short_name)))}
 
       ${ovCard("2. Mã số doanh nghiệp", "name",
-        row("Mã số doanh nghiệp", dash(c.tax_code)) +
-        row("Đăng ký lần đầu", c.reg_first_date ? fmtDate(c.reg_first_date) : dash("")) +
-        row("Nơi cấp", dash(c.reg_place)))}
+        rowC("Mã số doanh nghiệp", "tax_code", dash(c.tax_code)) +
+        rowC("Đăng ký lần đầu", "reg_first_date", c.reg_first_date ? fmtDate(c.reg_first_date) : dash("")) +
+        rowC("Nơi cấp", "reg_place", dash(c.reg_place)))}
 
       ${reps.length
         ? ovCardSubs("3. Người đại diện theo pháp luật", "reps",
@@ -1485,52 +1530,68 @@
               row("Chức danh", dash(r.title)) +
               row("Số định danh", dash(r.id_number)) +
               (r.from_date ? row("Giữ chức từ", fmtDate(r.from_date)) : ""))).join("") +
+            oldHolders("Người đại diện theo pháp luật", oldReps, "full_name", "title") +
             `<p class="muted small">${reps.length} người đang giữ chức · tổng ${state.sub.reps.length} lượt trong lịch sử</p>`)
         : ovCard("3. Người đại diện theo pháp luật", "reps",
-            row("Người đại diện", dash(c.legal_rep)) +
+            rowC("Người đại diện theo pháp luật", "legal_rep", dash(c.legal_rep)) +
             row("Chức danh", dash("")) +
             row("Số định danh", dash("")),
             "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép.")}
 
       ${ovCardSubs("4. Địa điểm hoạt động", null,
         ovSub("Trụ sở chính & liên hệ", "address",
-          row("Trụ sở chính", dash(c.address)) +
-          row("Tỉnh / Thành phố", dash(c.province)) +
-          row("Điện thoại", dash(c.phone)) +
-          row("Fax", dash(c.fax)) +
-          row("Email", dash(c.email))) +
+          rowC("Trụ sở chính", "address", dash(c.address)) +
+          rowC("Tỉnh / Thành phố", "province", dash(c.province)) +
+          rowC("Điện thoại", "phone", dash(c.phone)) +
+          rowC("Fax", "fax", dash(c.fax)) +
+          rowC("Email", "email", dash(c.email))) +
         ovSub("Cơ sở vật chất đào tạo GDĐH", "facilities",
           facs.length
             ? facs.map((f, i) => row(`CSVC ${i + 1}${f.name ? " · " + f.name : ""}`,
                 dash(f.address) + (f.own_type ? ` <span class="chip">${esc(f.own_type)}</span>` : ""))).join("")
-            : row("Tên cơ sở đào tạo", dash(c.training_facility)) + row("Địa chỉ", dash(c.training_address)),
+              + oldHolders("Cơ sở vật chất đào tạo", oldFacs, "name", "address")
+            : rowC("Tên cơ sở đào tạo", "training_facility", dash(c.training_facility)) + rowC("Địa chỉ", "training_address", dash(c.training_address)),
           facs.length ? `${facs.length} cơ sở đang sử dụng · tổng ${state.sub.facilities.length} cơ sở trong lịch sử`
                       : "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép."),
         "ov-wide")}
 
       ${ovCard("5. Trang thông tin điện tử", "address",
-        row("Địa chỉ trang TTĐT", c.website ? esc(c.website) : dash("")))}
+        rowC("Địa chỉ trang TTĐT", "website", c.website ? esc(c.website) : dash("")))}
 
       ${ovCard("Ký quỹ", "deposit",
-        row("Ngân hàng", dash(c.deposit_bank)) +
-        row("Số tài khoản", dash(c.deposit_account)) +
-        row("Số tiền ký quỹ", c.deposit_amount ? `<b>${esc(fmtVnd(c.deposit_amount))}</b>` : dash("")) +
-        row("Ngày ký quỹ", c.deposit_date ? fmtDate(c.deposit_date) : dash("")))}
+        rowC("Ngân hàng", "deposit_bank", dash(c.deposit_bank)) +
+        rowC("Số tài khoản", "deposit_account", dash(c.deposit_account)) +
+        rowC("Số tiền ký quỹ", "deposit_amount", c.deposit_amount ? `<b>${esc(fmtVnd(c.deposit_amount))}</b>` : dash("")) +
+        rowC("Ngày ký quỹ", "deposit_date", c.deposit_date ? fmtDate(c.deposit_date) : dash("")))}
 
       ${ovCard("Danh sách nhân viên nghiệp vụ", "staff",
-        row(staff.length ? staff.length + " người" : "Nhân viên nghiệp vụ", bullets(staff)))}
+        row(staff.length ? staff.length + " người" : "Nhân viên nghiệp vụ", bullets(staff) + wasHtml("Danh sách nhân viên nghiệp vụ", "staff_list")))}
 
       ${ovCard("Vốn điều lệ & loại hình doanh nghiệp", "capital",
-        row("Vốn điều lệ", c.charter_capital ? `<b>${esc(fmtVnd(c.charter_capital))}</b>` : dash("")) +
-        row("Loại hình", dash(c.company_type)))}
+        rowC("Vốn điều lệ", "charter_capital", c.charter_capital ? `<b>${esc(fmtVnd(c.charter_capital))}</b>` : dash("")) +
+        rowC("Loại hình", "company_type", dash(c.company_type)))}
 
       ${ovCard("Thị trường hoạt động", "markets",
-        row(`${mk.length ? mk.length + " thị trường" : "Thị trường"}`, bullets(mk)))}
+        row(`${mk.length ? mk.length + " thị trường" : "Thị trường"}`, bullets(mk) + wasHtml("Thị trường hoạt động", "markets")))}
       </div>`;
   }
+  // Hiện "<Tên trường> cũ: …" ngay dưới chính ô nhập của trường đó
+  function renderFieldHints() {
+    const m = state.chg || new Map();
+    C_TEXT.concat(C_DATE, C_NUM).map((k) => [k, "c-" + k]).concat([["status", "c-status-f"]]).forEach(([k, id]) => {
+      const el = $("#" + id); if (!el) return;
+      const lb = el.closest("label"); if (!lb) return;
+      const cur = lb.querySelector(":scope > .was");
+      if (cur) cur.remove();
+      if (!m.get(k)) return;
+      lb.insertAdjacentHTML("beforeend", wasHtml(labelOf(k), k));
+    });
+  }
+
   function renderCompanyPanes() {
     renderReps(); renderAdjustments(); renderFacilities(); renderViolations(); renderInspections(); renderTimeline();
     renderOverview();
+    renderFieldHints();
     setCount("staff", countStaff(state.cur?.staff_list || ""));
     const canEdit = isLead();
     $$("#company-dialog [data-add]").forEach((b) => (b.hidden = !canEdit || !state.cur));
