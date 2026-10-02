@@ -75,7 +75,7 @@
   if (!db) db = seedEmpty();
   db.licenses ||= []; db.license_logs ||= []; db.company_updates ||= []; db.company_update_logs ||= []; db.companies ||= []; // nâng cấp dữ liệu cũ
   // Các bảng lịch sử của hồ sơ doanh nghiệp đầy đủ
-  db.company_reps ||= []; db.company_facilities ||= []; db.company_violations ||= []; db.company_inspections ||= []; db.company_events ||= [];
+  db.company_reps ||= []; db.company_facilities ||= []; db.company_violations ||= []; db.company_inspections ||= []; db.company_events ||= []; db.company_adjustments ||= [];
   // Luôn phải có ít nhất 1 Trưởng phòng, nếu không sẽ không ai thêm được việc
   if (!db.profiles.some((p) => p.role === "lead" && p.active)) { db.profiles[0].role = "lead"; db.profiles[0].active = true; }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
