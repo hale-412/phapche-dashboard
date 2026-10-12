@@ -72,11 +72,9 @@ create table if not exists public.tasks (
 -- Nâng cấp DB đã tạo trước 2026-09-18 (an toàn khi chạy lại)
 alter table public.tasks add column if not exists tax_code text;
 alter table public.tasks add column if not exists biz_type text;
--- Nâng cấp DB đã tạo trước 2026-10-12: nội dung cập nhật cụ thể của hồ sơ "Cập nhật thông tin DN"
---   update_fields: [{"field":"address","label":"Địa chỉ trụ sở chính","old_value":"…","new_value":"…"}]
-alter table public.tasks add column if not exists update_fields     jsonb;
-alter table public.tasks add column if not exists update_applied_at timestamptz;
-alter table public.tasks add column if not exists update_applied_by uuid references public.profiles(id);
+-- Nâng cấp DB đã tạo trước 2026-10-12: hồ sơ "Cập nhật thông tin DN" cập nhật thông tin gì
+--   (danh mục ở js/config.js: BIZ_UPDATE_ITEMS)
+alter table public.tasks add column if not exists update_item text;
 create index if not exists tasks_deadline_idx on public.tasks(deadline);
 create index if not exists tasks_handler1_idx on public.tasks(handler1);
 create index if not exists tasks_handler2_idx on public.tasks(handler2);

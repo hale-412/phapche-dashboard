@@ -51,38 +51,13 @@ window.UPDATE_TYPES = [
   "Thay đổi người đại diện theo pháp luật",
   "Cập nhật thông tin khác không liên quan đến điều kiện (số điện thoại, số căn cước, số fax, email…)",
 ];
-// Hồ sơ "Cập nhật thông tin DN" trong mô-đun Văn bản / Công việc → cập nhật cụ thể thông tin gì.
-// Mỗi mục ứng với 1 trường trong Profile doanh nghiệp (khóa lấy từ COMPANY_FIELDS) để bấm
-// "Áp dụng vào hồ sơ DN" là ghi thẳng sang profile + vào nhật ký thay đổi.
-//   group: tiêu đề nhóm khi hiển thị · multi: nội dung nhiều dòng (mỗi dòng 1 mục)
-window.BIZ_UPDATE_FIELDS = [
-  { key: "name",             group: "Tên doanh nghiệp" },
-  { key: "en_name",          group: "Tên doanh nghiệp" },
-  { key: "short_name",       group: "Tên doanh nghiệp" },
-  { key: "legal_rep",        group: "Người đại diện" },
-  { key: "address",          group: "Địa điểm", multi: true },
-  { key: "contact_address",  group: "Địa điểm", multi: true },
-  { key: "rep_offices",      group: "Địa điểm", multi: true },
-  { key: "biz_locations",    group: "Địa điểm", multi: true },
-  { key: "branches",         group: "Địa điểm", multi: true },
-  { key: "province",         group: "Địa điểm" },
-  { key: "phone",            group: "Liên hệ" },
-  { key: "fax",              group: "Liên hệ" },
-  { key: "email",            group: "Liên hệ" },
-  { key: "website",          group: "Liên hệ" },
-  { key: "charter_capital",  group: "Vốn & loại hình" },
-  { key: "company_type",     group: "Vốn & loại hình" },
-  { key: "staff_list",       group: "Nhân viên nghiệp vụ", multi: true },
-  { key: "training_facility", group: "Cơ sở đào tạo" },
-  { key: "training_address", group: "Cơ sở đào tạo", multi: true },
-  { key: "markets",          group: "Thị trường hoạt động", multi: true },
-  { key: "deposit_bank",     group: "Ký quỹ" },
-  { key: "deposit_account",  group: "Ký quỹ" },
-  { key: "deposit_amount",   group: "Ký quỹ" },
-  { key: "deposit_date",     group: "Ký quỹ" },
-  { key: "deposit_ref",      group: "Ký quỹ" },
-  { key: "license_number",   group: "Giấy phép" },
-  { key: "note",             group: "Khác" },
+// Hồ sơ "Cập nhật thông tin DN" trong mô-đun Văn bản / Công việc → cập nhật thông tin gì.
+// Hiện ở ô chọn "Cập nhật thông tin gì" ngay dưới Nội dung hồ sơ; sửa / thêm dòng tự do.
+window.BIZ_UPDATE_ITEMS = [
+  "Nhân viên nghiệp vụ",
+  "Địa chỉ văn phòng đại diện",
+  "Địa điểm kinh doanh",
+  "Thông tin ký quỹ",
 ];
 
 window.UPDATE_STATUSES = [
@@ -102,6 +77,7 @@ window.TASK_FIELDS = [
   { key: "received_date", label: "Ngày đến",           match: /ngày đến|ngày nhận|ngày tiếp nhận/i, conv: "date" },
   { key: "sender",        label: "Cơ quan gửi",        match: /cơ quan|nơi gửi|người gửi|đơn vị gửi/i },
   { key: "biz_type",      label: "Nội dung hồ sơ DN",  match: /nội dung hồ sơ|hồ sơ dn|loại hồ sơ/i },
+  { key: "update_item",   label: "Cập nhật thông tin gì", match: /cập nhật thông tin gì|thông tin cập nhật/i },
   { key: "category",      label: "Loại việc",          match: /loại việc|loại công việc|loại vb/i, conv: "category" },
   { key: "tax_code",      label: "Mã số DN",           match: /mã số|msdn|mst/i },
   { key: "content",       label: "Nội dung / Trích yếu", match: /nội dung|trích yếu|tóm tắt/i },

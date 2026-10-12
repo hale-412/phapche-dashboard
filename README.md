@@ -119,12 +119,11 @@ Mỗi sáng 7h30 (thứ 2-6), mỗi chuyên viên nhận email liệt kê việc
   Hồ sơ quá hạn / sắp đến hạn cũng hiện trong *Việc cần chú ý* và email nhắc việc.
 - *(2026-09-23)* Tab **Cập nhật thông tin DN** đã bỏ khỏi giao diện — nội dung này nhập ở **Văn bản / Công việc** (loại việc *Doanh nghiệp* → *Cập nhật thông tin DN*)
   hoặc sửa trực tiếp trong hồ sơ **Doanh nghiệp**. Bảng `company_updates` và dữ liệu cũ vẫn giữ nguyên, hiện ở phần lịch sử của từng DN.
-- *(2026-10-12)* **Thêm văn bản** → loại việc *Doanh nghiệp* → *Cập nhật thông tin DN* có thêm khối **Cập nhật cụ thể thông tin gì**:
-  tích chọn các thông tin trong Profile doanh nghiệp (tên DN, người ĐDPL, trụ sở, địa chỉ liên hệ, **văn phòng đại diện**, **địa điểm kinh doanh**, **chi nhánh**,
-  vốn điều lệ, nhân viên nghiệp vụ, cơ sở đào tạo, thị trường, ký quỹ…), mỗi mục hiện *giá trị đang lưu* và ô nhập *giá trị mới*.
-  Lưu văn bản chỉ ghi nhận đề nghị; bấm **Áp dụng vào hồ sơ DN** (chỉ Trưởng phòng) mới ghi giá trị mới sang hồ sơ DN
-  kèm một dòng **nhật ký thay đổi** cho từng trường (căn cứ là số / ngày văn bản này). Sửa danh mục ở `js/config.js` (`BIZ_UPDATE_FIELDS`).
-  Cần chạy lại `supabase/schema.sql` để thêm các cột mới (`tasks.update_fields`, `companies.contact_address / rep_offices / biz_locations / branches`).
+- *(2026-10-12)* **Thêm văn bản** → loại việc *Doanh nghiệp* → *Cập nhật thông tin DN* có thêm ô chọn **Cập nhật thông tin gì**
+  (*Nhân viên nghiệp vụ · Địa chỉ văn phòng đại diện · Địa điểm kinh doanh · Thông tin ký quỹ*) — sửa danh mục ở `js/config.js` (`BIZ_UPDATE_ITEMS`).
+  Mục đã chọn hiện ở dòng văn bản, dòng thời gian của DN và cột CSV. Hồ sơ DN cũng có thêm các trường **địa chỉ liên hệ, văn phòng đại diện,
+  địa điểm kinh doanh, chi nhánh** (tab *Địa chỉ & liên hệ*). Cần chạy lại `supabase/schema.sql` để thêm các cột mới
+  (`tasks.update_item`, `companies.contact_address / rep_offices / biz_locations / branches`); chưa chạy thì app vẫn lưu được phần còn lại và báo cột nào còn thiếu.
 - **Doanh nghiệp**: hồ sơ (profile) từng doanh nghiệp có giấy phép — mã số DN, tên, người ĐDPL, địa chỉ, tỉnh/TP, liên hệ, CSĐT, số GP & các lần cấp đổi / điều chỉnh,
   trạng thái *Đang hoạt động / Đã chấm dứt* (thu hồi, nộp lại). Lọc theo tỉnh, loại hình, trạng thái; xuất CSV.
   - **⬆ Nhập từ Excel** (Trưởng phòng): chọn file `.xlsx` → chọn sheet → hệ thống tự nhận diện cột theo tiêu đề (bảng khớp cột có thể sửa tay,

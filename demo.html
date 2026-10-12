@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>[Dùng thử] Dashboard Phòng Pháp chế - Kiểm tra</title>
+<title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=22">
+<link rel="stylesheet" href="css/style.css?v=23">
 </head>
 <body>
 
@@ -244,17 +244,10 @@
           <small id="t-company-info" class="company-info" hidden></small>
         </label>
 
-        <!-- Chỉ hiện với hồ sơ "Cập nhật thông tin DN": cập nhật cụ thể thông tin gì trong Profile DN -->
-        <fieldset id="t-update-wrap" class="span-2 form-box" hidden>
-          <legend>Cập nhật cụ thể thông tin gì</legend>
-          <div class="upd-pick" id="t-update-pick"><!-- danh mục nạp từ window.BIZ_UPDATE_FIELDS --></div>
-          <div class="upd-values" id="t-update-values"></div>
-          <div class="upd-foot">
-            <small id="t-update-hint" class="muted">Tích chọn thông tin doanh nghiệp đề nghị cập nhật, nhập giá trị mới, rồi bấm <b>Áp dụng vào hồ sơ DN</b>.</small>
-            <div class="spacer"></div>
-            <button type="button" class="btn ghost lead-only" id="apply-update-btn">Áp dụng vào hồ sơ DN</button>
-          </div>
-        </fieldset>
+        <!-- Chỉ hiện với hồ sơ "Cập nhật thông tin DN": cập nhật thông tin gì -->
+        <label id="t-update_item-wrap" hidden>Cập nhật thông tin gì
+          <select id="t-update_item" class="lead-field"><!-- nạp từ window.BIZ_UPDATE_ITEMS --></select>
+        </label>
         <label>Số văn bản<input id="t-doc_number" class="lead-field"></label>
         <label>Ngày văn bản<input type="date" id="t-doc_date" class="lead-field"></label>
         <label>Ngày đến<input type="date" id="t-received_date" class="lead-field"></label>
@@ -897,18 +890,18 @@
 </dialog>
 
 <div id="toast" class="toast" hidden></div>
-<div style="position:fixed;bottom:0;left:12px;background:#fab219;color:#0b0b0b;font-size:12px;font-weight:600;padding:2px 12px;border-radius:8px 8px 0 0;z-index:50">DÙNG THỬ – dữ liệu lưu trên máy này, chưa chia sẻ</div>
+<div style="position:fixed;bottom:0;left:12px;background:#fab219;color:#0b0b0b;font-size:12px;font-weight:600;padding:2px 12px;border-radius:8px 8px 0 0;z-index:50">DÃ™NG THá»¬ â€“ dá»¯ liá»‡u lÆ°u trÃªn mÃ¡y nÃ y, chÆ°a chia sáº»</div>
 
-<!-- CHẾ ĐỘ DÙNG THỬ TRÊN MÁY: dữ liệu lưu trong localStorage của trình duyệt này.
-     ?sample=1 nạp dữ liệu mẫu · ?reset=1 xóa hết · ?user=N xem với vai người thứ N trong danh sách -->
+<!-- CHáº¾ Äá»˜ DÃ™NG THá»¬ TRÃŠN MÃY: dá»¯ liá»‡u lÆ°u trong localStorage cá»§a trÃ¬nh duyá»‡t nÃ y.
+     ?sample=1 náº¡p dá»¯ liá»‡u máº«u Â· ?reset=1 xÃ³a háº¿t Â· ?user=N xem vá»›i vai ngÆ°á»i thá»© N trong danh sÃ¡ch -->
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=22"></script>
+<script src="js/config.js?v=23"></script>
 <script>
   window.MOCK_USER = +(new URLSearchParams(location.search).get("user") || 1);
   window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
 </script>
-<script src="js/demo-data.js?v=22"></script>
-<script src="js/app.js?v=22"></script>
+<script src="js/demo-data.js?v=23"></script>
+<script src="js/app.js?v=23"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>

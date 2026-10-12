@@ -347,7 +347,7 @@
       return `<tr data-id="${t.id}" class="${rowCls}">
         <td class="nowrap mono">${esc(t.doc_number) || "—"}${t.priority === "urgent" ? ' <span class="tag urgent">Khẩn</span>' : ""}</td>
         <td class="nowrap mono">${fmtDate(t.doc_date)}</td>
-        <td class="content-cell">${esc(t.content)}<div class="sender">${esc(t.sender || "")}${t.category && t.category !== "Văn bản đến" ? " · " + esc(t.category) : ""}${t.biz_type ? " · " + esc(t.biz_type) : ""}${t.tax_code ? " · MSDN " + esc(t.tax_code) : ""}</div></td>
+        <td class="content-cell">${esc(t.content)}<div class="sender">${esc(t.sender || "")}${t.category && t.category !== "Văn bản đến" ? " · " + esc(t.category) : ""}${t.biz_type ? " · " + esc(t.biz_type) : ""}${t.update_item ? " · " + esc(t.update_item) : ""}${t.tax_code ? " · MSDN " + esc(t.tax_code) : ""}</div></td>
         <td class="nowrap"><span class="mono">${fmtDate(t.deadline)}</span><br><span class="due ${d.cls}">${esc(d.text)}</span></td>
         <td>${esc(nameOf(t.handler1))}</td>
         <td>${t.handler2 ? esc(nameOf(t.handler2)) : '<span class="muted">—</span>'}</td>
@@ -771,10 +771,10 @@
     const found = id ? state.companies.find((x) => String(x.id) === id) : null;
     const before = found ? { ...found } : null;
     $("#save-company-btn").disabled = true;
-    const q = id
-      ? state.sb.from("companies").update(payload).eq("id", id).select("id").single()
-      : state.sb.from("companies").insert(payload).select("id").single();
-    const { data, error } = await q;
+    const { data, error } = await writeSafe(payload, (p) =>
+      id
+        ? state.sb.from("companies").update(p).eq("id", id).select("id").single()
+        : state.sb.from("companies").insert(p).select("id").single());
     $("#save-company-btn").disabled = false;
     if (error) { toast(error.message, true); return; }
     // Ghi nhật ký thay đổi kèm căn cứ (văn bản đến) để tra cứu về sau
@@ -1070,8 +1070,7 @@
     $("#t-category").value = normCat(t?.category) || "Văn bản đến";
     $("#t-biz_type").value = t?.biz_type || BIZ_TASK_TYPES[0] || "";
     $("#t-tax_code").value = t?.tax_code || "";
-    uSel = new Map((t?.update_fields || []).map((x) => [x.field, x.new_value || ""]));
-    updateAppliedHint(t);
+    $("#t-update_item").value = t?.update_item || "";
     syncBizFields();
     taskCompanyLookup(false);
     $("#t-priority").value = t?.priority || "normal";
@@ -1116,121 +1115,18 @@
     syncUpdateBlock();
   }
 
-  // =================================================================
-  // Hồ sơ "Cập nhật thông tin DN" → cập nhật cụ thể thông tin gì
-  // Mỗi mục ứng với 1 trường trong Profile doanh nghiệp; bấm "Áp dụng vào hồ sơ DN"
-  // là ghi giá trị mới sang bảng companies + vào nhật ký thay đổi của hồ sơ DN.
-  // =================================================================
+  // ---------------------------------------------------------------
+  // Hồ sơ "Cập nhật thông tin DN" → ô chọn "Cập nhật thông tin gì"
+  // (danh mục sửa ở js/config.js: BIZ_UPDATE_ITEMS)
+  // ---------------------------------------------------------------
   const BIZ_UPDATE_TYPE = "Cập nhật thông tin DN";
-  const UFIELDS = window.BIZ_UPDATE_FIELDS || [];
-  const UF_MAP = Object.fromEntries(UFIELDS.map((f) => [f.key, f]));
-  const uLabel = (k) => String(CF_MAP[k]?.label || k).replace(/\s*\((VNĐ|ĐKDN)\)$/, "");
+  const UITEMS = window.BIZ_UPDATE_ITEMS || [];
   const isUpdateTask = () => $("#t-category").value === CAT_BIZ && $("#t-biz_type").value === BIZ_UPDATE_TYPE;
-  let uSel = new Map();                                   // khóa trường → giá trị mới đang nhập
-
-  // Doanh nghiệp của văn bản đang mở (khớp theo mã số DN với tab Doanh nghiệp)
-  function taskCompany() {
-    const code = normTax($("#t-tax_code").value);
-    return code ? state.companies.find((x) => normTax(x.tax_code) === code) || null : null;
-  }
-  const showValue = (k, v) => (!normVal(v) ? "" : C_NUM.includes(k) ? fmtVnd(v) : C_DATE.includes(k) ? fmtDate(v) : String(v));
-
-  function updPickHTML() {
-    const order = [], by = new Map();
-    UFIELDS.forEach((f) => {
-      const g = f.group || "Khác";
-      if (!by.has(g)) { by.set(g, []); order.push(g); }
-      by.get(g).push(f);
-    });
-    return order.map((g) => `<div class="upd-group"><b>${esc(g)}</b><div class="upd-items">`
-      + by.get(g).map((f) => `<label class="upd-item"><input type="checkbox" class="upd-cb" value="${esc(f.key)}"${uSel.has(f.key) ? " checked" : ""}> ${esc(uLabel(f.key))}</label>`).join("")
-      + `</div></div>`).join("");
-  }
-
-  // Với mỗi mục đã tích: hiện giá trị đang lưu trong hồ sơ DN + ô nhập giá trị mới
-  function renderUpdateValues() {
-    const c = taskCompany(), box = $("#t-update-values");
-    const keys = [...uSel.keys()];
-    if (!keys.length) { box.innerHTML = `<p class="muted small">Chưa chọn thông tin nào.</p>`; return; }
-    box.innerHTML = keys.map((k) => {
-      const f = UF_MAP[k] || {};
-      const cur = showValue(k, c ? c[k] : "");
-      const val = uSel.get(k) || "";
-      const inp = f.multi
-        ? `<textarea rows="3" class="upd-new" data-k="${esc(k)}" placeholder="Giá trị mới (mỗi dòng một mục)…">${esc(val)}</textarea>`
-        : `<input type="${C_DATE.includes(k) ? "date" : "text"}" class="upd-new" data-k="${esc(k)}" value="${esc(val)}" placeholder="Giá trị mới…">`;
-      return `<div class="upd-row">
-        <div class="upd-name">${esc(uLabel(k))}</div>
-        <div class="upd-cur">Đang lưu: ${cur ? esc(cur).replace(/\n/g, "<br>") : '<span class="muted">—</span>'}</div>
-        <div class="upd-inp">${inp}</div>
-      </div>`;
-    }).join("");
-  }
 
   function syncUpdateBlock() {
     const on = isUpdateTask();
-    $("#t-update-wrap").hidden = !on;
-    if (!on) { $("#t-update-pick").innerHTML = ""; $("#t-update-values").innerHTML = ""; return; }
-    $("#t-update-pick").innerHTML = updPickHTML();
-    renderUpdateValues();
-  }
-
-  // Dữ liệu lưu vào tasks.update_fields
-  function updatePayload() {
-    const c = taskCompany();
-    return [...uSel.keys()].map((k) => ({
-      field: k, label: uLabel(k),
-      old_value: normVal(c ? c[k] : "") || null,
-      new_value: (uSel.get(k) || "").trim() || null,
-    }));
-  }
-
-  function updateAppliedHint(t) {
-    const el = $("#t-update-hint");
-    el.innerHTML = t?.update_applied_at
-      ? `✔ Đã áp dụng vào hồ sơ DN lúc ${esc(fmtDateTime(t.update_applied_at))}${t.update_applied_by ? " · " + esc(nameOf(t.update_applied_by)) : ""}. Áp dụng lại sẽ ghi tiếp vào nhật ký thay đổi.`
-      : `Tích chọn thông tin doanh nghiệp đề nghị cập nhật, nhập giá trị mới, rồi bấm <b>Áp dụng vào hồ sơ DN</b>.`;
-  }
-
-  // Ghi giá trị mới sang hồ sơ DN + nhật ký thay đổi (căn cứ là số / ngày của văn bản này)
-  async function applyUpdateToCompany() {
-    if (!isLead()) { toast("Chỉ Trưởng phòng mới được sửa hồ sơ doanh nghiệp", true); return; }
-    const id = $("#t-id").value;
-    if (!id) { toast("Hãy bấm Lưu văn bản trước khi áp dụng vào hồ sơ DN", true); return; }
-    const c = taskCompany();
-    if (!c) { toast("Không tìm thấy doanh nghiệp theo mã số này trong tab Doanh nghiệp", true); return; }
-    const items = updatePayload();
-    if (!items.length) { toast("Chưa chọn thông tin cần cập nhật", true); return; }
-    const miss = items.filter((x) => !x.new_value);
-    if (miss.length) { toast("Chưa nhập giá trị mới cho: " + miss.map((x) => x.label).join(", "), true); return; }
-
-    const patch = {};
-    items.forEach((x) => (patch[x.field] = C_NUM.includes(x.field) ? parseVnd(x.new_value) : x.new_value));
-    const changed = items.filter((x) => normVal(c[x.field]) !== normVal(patch[x.field]));
-    if (!changed.length) { toast("Hồ sơ DN đã trùng với giá trị mới — không có gì để cập nhật"); return; }
-    const lines2 = changed.map((x) => `• ${x.label}: ${showValue(x.field, c[x.field]) || "—"}  →  ${showValue(x.field, patch[x.field])}`);
-    if (!confirm(`Cập nhật ${changed.length} thông tin vào hồ sơ "${c.name}"?\n\n${lines2.join("\n")}`)) return;
-
-    const btn = $("#apply-update-btn");
-    btn.disabled = true;
-    const before = { ...c };
-    const { error } = await state.sb.from("companies").update(patch).eq("id", c.id);
-    if (error) { btn.disabled = false; toast(error.message, true); return; }
-    const ref = {
-      doc_number: $("#t-doc_number").value.trim() || null,
-      doc_date: $("#t-doc_date").value || null,
-      note: $("#t-content").value.trim() || null,
-    };
-    const rows = changeRows(c.id, before, patch, Object.keys(patch), ref, "auto").map((r) => ({ ...r, task_id: +id }));
-    const n = await insertEvents(rows);
-    const applied = { update_fields: items, update_applied_at: new Date().toISOString(), update_applied_by: state.me?.id || null };
-    const { error: e2 } = await state.sb.from("tasks").update(applied).eq("id", id);
-    btn.disabled = false;
-    if (e2) { toast("Đã cập nhật hồ sơ DN nhưng không ghi được dấu vào văn bản: " + e2.message, true); }
-    else toast(`Đã cập nhật ${changed.length} thông tin vào hồ sơ DN · ghi ${n} thay đổi vào lịch sử`);
-    updateAppliedHint(applied);
-    await loadAll();
-    renderUpdateValues();
+    $("#t-update_item-wrap").hidden = !on;
+    $("#t-update_item").required = on;
   }
 
   // Gõ mã số DN đã có trên hệ thống → hiện tên doanh nghiệp (đầy đủ / viết tắt / tiếng Anh)
@@ -1247,6 +1143,23 @@
       + (c ? "" : `<span class="muted">Chưa có trong tab Doanh nghiệp — tên lấy từ hồ sơ đã nhập</span>`);
     box.hidden = false;
     if (name && !$("#t-sender").value.trim()) $("#t-sender").value = name;
+  }
+
+  // Lưu một bản ghi; nếu DB chưa có cột mới (chưa chạy phần nâng cấp trong supabase/schema.sql)
+  // thì bỏ cột đó ra và gửi lại, để phần còn lại vẫn lưu được thay vì hỏng cả bản ghi.
+  //   make(p) → câu lệnh Supabase dựng từ dữ liệu p
+  async function writeSafe(payload, make) {
+    const p = { ...payload };
+    for (let i = 0; i < 5; i++) {
+      const res = await make(p);
+      const msg = res.error?.message || "";
+      const m = /'([A-Za-z0-9_]+)' column/.exec(msg) || /column "?([A-Za-z0-9_.]+)"? does not exist/.exec(msg);
+      const col = m && m[1].split(".").pop();
+      if (!col || !(col in p)) return res;
+      delete p[col];
+      toast(`DB chưa có cột "${col}" — hãy chạy lại supabase/schema.sql; tạm lưu phần còn lại`, true);
+    }
+    return make(p);
   }
 
   async function saveTask(e) {
@@ -1273,11 +1186,11 @@
       handler2: $("#t-handler2").value || null,
     });
     if (payload.handler1 && payload.handler1 === payload.handler2) { toast("Phụ trách mức 1 và mức 2 không được trùng nhau", true); return; }
-    // Hồ sơ "Cập nhật thông tin DN": lưu danh mục thông tin đề nghị cập nhật (chưa ghi sang hồ sơ DN)
-    payload.update_fields = isUpdateTask() ? updatePayload() : null;
+    // Hồ sơ "Cập nhật thông tin DN": cập nhật thông tin gì
+    if (isLead()) payload.update_item = isUpdateTask() ? $("#t-update_item").value || null : null;
     $("#save-task-btn").disabled = true;
-    const q = id ? state.sb.from("tasks").update(payload).eq("id", id) : state.sb.from("tasks").insert(payload);
-    const { error } = await q;
+    const { error } = await writeSafe(payload, (p) =>
+      id ? state.sb.from("tasks").update(p).eq("id", id) : state.sb.from("tasks").insert(p));
     $("#save-task-btn").disabled = false;
     if (error) { toast(error.message, true); return; }
     toast(id ? "Đã lưu" : "Đã thêm văn bản");
@@ -1331,10 +1244,10 @@
   // ---------- Xuất CSV ----------
   function exportCSV() {
     const rows = sortTasks(filteredTasks());
-    const head = ["Số VB", "Ngày VB", "Ngày đến", "Cơ quan gửi", "Loại việc", "Nội dung hồ sơ DN", "Mã số DN", "Nội dung", "Thời hạn", "Phụ trách 1", "Phụ trách 2", "Trạng thái", "Tiến độ %", "Ghi chú tiến độ", "Kết quả", "Mức độ"];
+    const head = ["Số VB", "Ngày VB", "Ngày đến", "Cơ quan gửi", "Loại việc", "Nội dung hồ sơ DN", "Cập nhật thông tin gì", "Mã số DN", "Nội dung", "Thời hạn", "Phụ trách 1", "Phụ trách 2", "Trạng thái", "Tiến độ %", "Ghi chú tiến độ", "Kết quả", "Mức độ"];
     const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [head.map(cell).join(",")].concat(rows.map((t) => [
-      t.doc_number, fmtDate(t.doc_date), fmtDate(t.received_date), t.sender, t.category, t.biz_type, t.tax_code, t.content, fmtDate(t.deadline),
+      t.doc_number, fmtDate(t.doc_date), fmtDate(t.received_date), t.sender, t.category, t.biz_type, t.update_item, t.tax_code, t.content, fmtDate(t.deadline),
       nameOf(t.handler1), t.handler2 ? nameOf(t.handler2) : "", STATUS[t.status], t.progress, t.progress_note, t.result, t.priority === "urgent" ? "Khẩn" : "",
     ].map(cell).join(",")));
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
@@ -1431,20 +1344,9 @@
     $("#t-category").addEventListener("change", syncBizFields);
     $("#t-biz_type").addEventListener("change", syncUpdateBlock);
     $("#t-tax_code").addEventListener("input", () => taskCompanyLookup(false));
-    $("#t-tax_code").addEventListener("change", () => { taskCompanyLookup(true); if (isUpdateTask()) renderUpdateValues(); });
-    // Tích / bỏ tích một mục cập nhật → hiện (ẩn) ô nhập giá trị mới của mục đó
-    $("#t-update-pick").addEventListener("change", (e) => {
-      const cb = e.target.closest(".upd-cb");
-      if (!cb) return;
-      if (cb.checked) uSel.set(cb.value, uSel.get(cb.value) || "");
-      else uSel.delete(cb.value);
-      renderUpdateValues();
-    });
-    $("#t-update-values").addEventListener("input", (e) => {
-      const el = e.target.closest(".upd-new");
-      if (el) uSel.set(el.dataset.k, el.value);
-    });
-    $("#apply-update-btn").addEventListener("click", applyUpdateToCompany);
+    $("#t-tax_code").addEventListener("change", () => taskCompanyLookup(true));
+    $("#t-update_item").innerHTML = `<option value="">— Chọn thông tin —</option>`
+      + UITEMS.map((x) => `<option>${esc(x)}</option>`).join("");
     $("#t-progress").addEventListener("input", (e) => ($("#t-progress-val").textContent = e.target.value + "%"));
     $("#swap-btn").addEventListener("click", () => {
       const a = $("#t-handler1"), b = $("#t-handler2");
@@ -1887,7 +1789,8 @@
     });
     if (c.tax_code) {
       state.tasks.filter((t) => t.tax_code === c.tax_code).forEach((t) => out.push({
-        d: t.received_date || t.doc_date, g: "doc", tag: t.biz_type || t.category || "Văn bản đến", cls: "new",
+        d: t.received_date || t.doc_date, g: "doc", cls: "new",
+        tag: [t.biz_type || t.category || "Văn bản đến", t.update_item].filter(Boolean).join(" · "),
         html: esc(t.content), doc: t.doc_number, docd: t.doc_date, note: t.sender,
         extra: `<span class="tag ${t.status}">${esc(statusLabel(t))}</span>${t.result ? " · " + esc(t.result) : ""}`,
         open: { kind: "task", id: t.id },
