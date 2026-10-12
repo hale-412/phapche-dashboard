@@ -681,7 +681,8 @@
     }).join("") + (list.length === 0 && state.companies.length ? `<tr><td colspan="8" class="muted center">Không có doanh nghiệp nào phù hợp.</td></tr>` : "");
   }
 
-  const C_TEXT = ["tax_code", "reg_place", "name", "short_name", "en_name", "legal_rep", "company_type", "address", "province", "website", "phone", "fax", "email", "training_facility",
+  const C_TEXT = ["tax_code", "reg_place", "name", "short_name", "en_name", "legal_rep", "company_type", "address", "contact_address",
+    "rep_offices", "biz_locations", "branches", "province", "website", "phone", "fax", "email", "training_facility",
     "training_address", "staff_list", "markets", "deposit_bank", "deposit_account", "deposit_ref",
     "license_number", "first_license_number", "nd38_times", "law69_number", "adjust_times", "ds101", "note", "ended_year", "ended_type", "ended_reason", "ended_ref"];
   const C_DATE = ["reg_first_date", "license_date", "first_license_date", "nd38_date", "law69_date", "adjust_date", "deposit_date"];
@@ -1069,6 +1070,8 @@
     $("#t-category").value = normCat(t?.category) || "Văn bản đến";
     $("#t-biz_type").value = t?.biz_type || BIZ_TASK_TYPES[0] || "";
     $("#t-tax_code").value = t?.tax_code || "";
+    uSel = new Map((t?.update_fields || []).map((x) => [x.field, x.new_value || ""]));
+    updateAppliedHint(t);
     syncBizFields();
     taskCompanyLookup(false);
     $("#t-priority").value = t?.priority || "normal";
@@ -1110,6 +1113,124 @@
     $("#t-tax_code-wrap").hidden = !show;
     $("#t-tax_code").required = show;
     if (!show) { $("#t-company-info").hidden = true; $("#t-company-info").innerHTML = ""; }
+    syncUpdateBlock();
+  }
+
+  // =================================================================
+  // Hồ sơ "Cập nhật thông tin DN" → cập nhật cụ thể thông tin gì
+  // Mỗi mục ứng với 1 trường trong Profile doanh nghiệp; bấm "Áp dụng vào hồ sơ DN"
+  // là ghi giá trị mới sang bảng companies + vào nhật ký thay đổi của hồ sơ DN.
+  // =================================================================
+  const BIZ_UPDATE_TYPE = "Cập nhật thông tin DN";
+  const UFIELDS = window.BIZ_UPDATE_FIELDS || [];
+  const UF_MAP = Object.fromEntries(UFIELDS.map((f) => [f.key, f]));
+  const uLabel = (k) => String(CF_MAP[k]?.label || k).replace(/\s*\((VNĐ|ĐKDN)\)$/, "");
+  const isUpdateTask = () => $("#t-category").value === CAT_BIZ && $("#t-biz_type").value === BIZ_UPDATE_TYPE;
+  let uSel = new Map();                                   // khóa trường → giá trị mới đang nhập
+
+  // Doanh nghiệp của văn bản đang mở (khớp theo mã số DN với tab Doanh nghiệp)
+  function taskCompany() {
+    const code = normTax($("#t-tax_code").value);
+    return code ? state.companies.find((x) => normTax(x.tax_code) === code) || null : null;
+  }
+  const showValue = (k, v) => (!normVal(v) ? "" : C_NUM.includes(k) ? fmtVnd(v) : C_DATE.includes(k) ? fmtDate(v) : String(v));
+
+  function updPickHTML() {
+    const order = [], by = new Map();
+    UFIELDS.forEach((f) => {
+      const g = f.group || "Khác";
+      if (!by.has(g)) { by.set(g, []); order.push(g); }
+      by.get(g).push(f);
+    });
+    return order.map((g) => `<div class="upd-group"><b>${esc(g)}</b><div class="upd-items">`
+      + by.get(g).map((f) => `<label class="upd-item"><input type="checkbox" class="upd-cb" value="${esc(f.key)}"${uSel.has(f.key) ? " checked" : ""}> ${esc(uLabel(f.key))}</label>`).join("")
+      + `</div></div>`).join("");
+  }
+
+  // Với mỗi mục đã tích: hiện giá trị đang lưu trong hồ sơ DN + ô nhập giá trị mới
+  function renderUpdateValues() {
+    const c = taskCompany(), box = $("#t-update-values");
+    const keys = [...uSel.keys()];
+    if (!keys.length) { box.innerHTML = `<p class="muted small">Chưa chọn thông tin nào.</p>`; return; }
+    box.innerHTML = keys.map((k) => {
+      const f = UF_MAP[k] || {};
+      const cur = showValue(k, c ? c[k] : "");
+      const val = uSel.get(k) || "";
+      const inp = f.multi
+        ? `<textarea rows="3" class="upd-new" data-k="${esc(k)}" placeholder="Giá trị mới (mỗi dòng một mục)…">${esc(val)}</textarea>`
+        : `<input type="${C_DATE.includes(k) ? "date" : "text"}" class="upd-new" data-k="${esc(k)}" value="${esc(val)}" placeholder="Giá trị mới…">`;
+      return `<div class="upd-row">
+        <div class="upd-name">${esc(uLabel(k))}</div>
+        <div class="upd-cur">Đang lưu: ${cur ? esc(cur).replace(/\n/g, "<br>") : '<span class="muted">—</span>'}</div>
+        <div class="upd-inp">${inp}</div>
+      </div>`;
+    }).join("");
+  }
+
+  function syncUpdateBlock() {
+    const on = isUpdateTask();
+    $("#t-update-wrap").hidden = !on;
+    if (!on) { $("#t-update-pick").innerHTML = ""; $("#t-update-values").innerHTML = ""; return; }
+    $("#t-update-pick").innerHTML = updPickHTML();
+    renderUpdateValues();
+  }
+
+  // Dữ liệu lưu vào tasks.update_fields
+  function updatePayload() {
+    const c = taskCompany();
+    return [...uSel.keys()].map((k) => ({
+      field: k, label: uLabel(k),
+      old_value: normVal(c ? c[k] : "") || null,
+      new_value: (uSel.get(k) || "").trim() || null,
+    }));
+  }
+
+  function updateAppliedHint(t) {
+    const el = $("#t-update-hint");
+    el.innerHTML = t?.update_applied_at
+      ? `✔ Đã áp dụng vào hồ sơ DN lúc ${esc(fmtDateTime(t.update_applied_at))}${t.update_applied_by ? " · " + esc(nameOf(t.update_applied_by)) : ""}. Áp dụng lại sẽ ghi tiếp vào nhật ký thay đổi.`
+      : `Tích chọn thông tin doanh nghiệp đề nghị cập nhật, nhập giá trị mới, rồi bấm <b>Áp dụng vào hồ sơ DN</b>.`;
+  }
+
+  // Ghi giá trị mới sang hồ sơ DN + nhật ký thay đổi (căn cứ là số / ngày của văn bản này)
+  async function applyUpdateToCompany() {
+    if (!isLead()) { toast("Chỉ Trưởng phòng mới được sửa hồ sơ doanh nghiệp", true); return; }
+    const id = $("#t-id").value;
+    if (!id) { toast("Hãy bấm Lưu văn bản trước khi áp dụng vào hồ sơ DN", true); return; }
+    const c = taskCompany();
+    if (!c) { toast("Không tìm thấy doanh nghiệp theo mã số này trong tab Doanh nghiệp", true); return; }
+    const items = updatePayload();
+    if (!items.length) { toast("Chưa chọn thông tin cần cập nhật", true); return; }
+    const miss = items.filter((x) => !x.new_value);
+    if (miss.length) { toast("Chưa nhập giá trị mới cho: " + miss.map((x) => x.label).join(", "), true); return; }
+
+    const patch = {};
+    items.forEach((x) => (patch[x.field] = C_NUM.includes(x.field) ? parseVnd(x.new_value) : x.new_value));
+    const changed = items.filter((x) => normVal(c[x.field]) !== normVal(patch[x.field]));
+    if (!changed.length) { toast("Hồ sơ DN đã trùng với giá trị mới — không có gì để cập nhật"); return; }
+    const lines2 = changed.map((x) => `• ${x.label}: ${showValue(x.field, c[x.field]) || "—"}  →  ${showValue(x.field, patch[x.field])}`);
+    if (!confirm(`Cập nhật ${changed.length} thông tin vào hồ sơ "${c.name}"?\n\n${lines2.join("\n")}`)) return;
+
+    const btn = $("#apply-update-btn");
+    btn.disabled = true;
+    const before = { ...c };
+    const { error } = await state.sb.from("companies").update(patch).eq("id", c.id);
+    if (error) { btn.disabled = false; toast(error.message, true); return; }
+    const ref = {
+      doc_number: $("#t-doc_number").value.trim() || null,
+      doc_date: $("#t-doc_date").value || null,
+      note: $("#t-content").value.trim() || null,
+    };
+    const rows = changeRows(c.id, before, patch, Object.keys(patch), ref, "auto").map((r) => ({ ...r, task_id: +id }));
+    const n = await insertEvents(rows);
+    const applied = { update_fields: items, update_applied_at: new Date().toISOString(), update_applied_by: state.me?.id || null };
+    const { error: e2 } = await state.sb.from("tasks").update(applied).eq("id", id);
+    btn.disabled = false;
+    if (e2) { toast("Đã cập nhật hồ sơ DN nhưng không ghi được dấu vào văn bản: " + e2.message, true); }
+    else toast(`Đã cập nhật ${changed.length} thông tin vào hồ sơ DN · ghi ${n} thay đổi vào lịch sử`);
+    updateAppliedHint(applied);
+    await loadAll();
+    renderUpdateValues();
   }
 
   // Gõ mã số DN đã có trên hệ thống → hiện tên doanh nghiệp (đầy đủ / viết tắt / tiếng Anh)
@@ -1152,6 +1273,8 @@
       handler2: $("#t-handler2").value || null,
     });
     if (payload.handler1 && payload.handler1 === payload.handler2) { toast("Phụ trách mức 1 và mức 2 không được trùng nhau", true); return; }
+    // Hồ sơ "Cập nhật thông tin DN": lưu danh mục thông tin đề nghị cập nhật (chưa ghi sang hồ sơ DN)
+    payload.update_fields = isUpdateTask() ? updatePayload() : null;
     $("#save-task-btn").disabled = true;
     const q = id ? state.sb.from("tasks").update(payload).eq("id", id) : state.sb.from("tasks").insert(payload);
     const { error } = await q;
@@ -1306,8 +1429,22 @@
     $("#delete-task-btn").addEventListener("click", deleteTask);
     $("#t-biz_type").innerHTML = BIZ_TASK_TYPES.map((x) => `<option>${esc(x)}</option>`).join("");
     $("#t-category").addEventListener("change", syncBizFields);
+    $("#t-biz_type").addEventListener("change", syncUpdateBlock);
     $("#t-tax_code").addEventListener("input", () => taskCompanyLookup(false));
-    $("#t-tax_code").addEventListener("change", () => taskCompanyLookup(true));
+    $("#t-tax_code").addEventListener("change", () => { taskCompanyLookup(true); if (isUpdateTask()) renderUpdateValues(); });
+    // Tích / bỏ tích một mục cập nhật → hiện (ẩn) ô nhập giá trị mới của mục đó
+    $("#t-update-pick").addEventListener("change", (e) => {
+      const cb = e.target.closest(".upd-cb");
+      if (!cb) return;
+      if (cb.checked) uSel.set(cb.value, uSel.get(cb.value) || "");
+      else uSel.delete(cb.value);
+      renderUpdateValues();
+    });
+    $("#t-update-values").addEventListener("input", (e) => {
+      const el = e.target.closest(".upd-new");
+      if (el) uSel.set(el.dataset.k, el.value);
+    });
+    $("#apply-update-btn").addEventListener("click", applyUpdateToCompany);
     $("#t-progress").addEventListener("input", (e) => ($("#t-progress-val").textContent = e.target.value + "%"));
     $("#swap-btn").addEventListener("click", () => {
       const a = $("#t-handler1"), b = $("#t-handler2");
@@ -1389,7 +1526,7 @@
     if (k === "legal_rep") return "rep";
     if (/^training_/.test(k)) return "facility";
     if (k === "staff_list") return "staff";
-    if (k === "charter_capital" || k === "address" || k === "province") return "capital";
+    if (/^(charter_capital|address|contact_address|province|rep_offices|biz_locations|branches)$/.test(k)) return "capital";
     if (/license|nd38|law69|adjust|ds101|ended/.test(k)) return "license";
     return "other";
   }
@@ -1559,6 +1696,7 @@
         ovSub("Trụ sở chính & liên hệ", "address",
           rowC("Trụ sở chính", "address", dash(c.address)) +
           rowC("Tỉnh / Thành phố", "province", dash(c.province)) +
+          (c.contact_address ? rowC("Địa chỉ liên hệ", "contact_address", dash(c.contact_address)) : "") +
           rowC("Điện thoại", "phone", dash(c.phone)) +
           rowC("Fax", "fax", dash(c.fax)) +
           rowC("Email", "email", dash(c.email))) +
@@ -1569,7 +1707,16 @@
               + oldHolders("Cơ sở vật chất đào tạo", oldFacs, "name", "address")
             : rowC("Tên cơ sở đào tạo", "training_facility", dash(c.training_facility)) + rowC("Địa chỉ", "training_address", dash(c.training_address)),
           facs.length ? `${facs.length} cơ sở đang sử dụng · tổng ${state.sub.facilities.length} cơ sở trong lịch sử`
-                      : "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép."),
+                      : "Chưa có dữ liệu trong bảng lịch sử — đang hiển thị thông tin ghi trên Giấy phép.") +
+        (c.rep_offices || c.biz_locations || c.branches
+          ? ovSub("Văn phòng đại diện, địa điểm kinh doanh, chi nhánh", "address",
+              row(`Văn phòng đại diện${lines(c.rep_offices).length ? " (" + lines(c.rep_offices).length + ")" : ""}`,
+                bullets(lines(c.rep_offices)) + wasHtml("Văn phòng đại diện", "rep_offices")) +
+              row(`Địa điểm kinh doanh${lines(c.biz_locations).length ? " (" + lines(c.biz_locations).length + ")" : ""}`,
+                bullets(lines(c.biz_locations)) + wasHtml("Địa điểm kinh doanh", "biz_locations")) +
+              row(`Chi nhánh${lines(c.branches).length ? " (" + lines(c.branches).length + ")" : ""}`,
+                bullets(lines(c.branches)) + wasHtml("Chi nhánh", "branches")))
+          : ""),
         "ov-wide")}
 
       ${ovCard("5. Trang thông tin điện tử", "address",

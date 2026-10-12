@@ -51,6 +51,40 @@ window.UPDATE_TYPES = [
   "Thay đổi người đại diện theo pháp luật",
   "Cập nhật thông tin khác không liên quan đến điều kiện (số điện thoại, số căn cước, số fax, email…)",
 ];
+// Hồ sơ "Cập nhật thông tin DN" trong mô-đun Văn bản / Công việc → cập nhật cụ thể thông tin gì.
+// Mỗi mục ứng với 1 trường trong Profile doanh nghiệp (khóa lấy từ COMPANY_FIELDS) để bấm
+// "Áp dụng vào hồ sơ DN" là ghi thẳng sang profile + vào nhật ký thay đổi.
+//   group: tiêu đề nhóm khi hiển thị · multi: nội dung nhiều dòng (mỗi dòng 1 mục)
+window.BIZ_UPDATE_FIELDS = [
+  { key: "name",             group: "Tên doanh nghiệp" },
+  { key: "en_name",          group: "Tên doanh nghiệp" },
+  { key: "short_name",       group: "Tên doanh nghiệp" },
+  { key: "legal_rep",        group: "Người đại diện" },
+  { key: "address",          group: "Địa điểm", multi: true },
+  { key: "contact_address",  group: "Địa điểm", multi: true },
+  { key: "rep_offices",      group: "Địa điểm", multi: true },
+  { key: "biz_locations",    group: "Địa điểm", multi: true },
+  { key: "branches",         group: "Địa điểm", multi: true },
+  { key: "province",         group: "Địa điểm" },
+  { key: "phone",            group: "Liên hệ" },
+  { key: "fax",              group: "Liên hệ" },
+  { key: "email",            group: "Liên hệ" },
+  { key: "website",          group: "Liên hệ" },
+  { key: "charter_capital",  group: "Vốn & loại hình" },
+  { key: "company_type",     group: "Vốn & loại hình" },
+  { key: "staff_list",       group: "Nhân viên nghiệp vụ", multi: true },
+  { key: "training_facility", group: "Cơ sở đào tạo" },
+  { key: "training_address", group: "Cơ sở đào tạo", multi: true },
+  { key: "markets",          group: "Thị trường hoạt động", multi: true },
+  { key: "deposit_bank",     group: "Ký quỹ" },
+  { key: "deposit_account",  group: "Ký quỹ" },
+  { key: "deposit_amount",   group: "Ký quỹ" },
+  { key: "deposit_date",     group: "Ký quỹ" },
+  { key: "deposit_ref",      group: "Ký quỹ" },
+  { key: "license_number",   group: "Giấy phép" },
+  { key: "note",             group: "Khác" },
+];
+
 window.UPDATE_STATUSES = [
   { value: "received",   label: "Tiếp nhận",        cls: "new" },
   { value: "processing", label: "Đang xử lý",       cls: "in_progress" },
@@ -110,6 +144,11 @@ window.COMPANY_FIELDS = [
   { key: "name",                 label: "Tên công ty",              match: /tên công ty|tên doanh nghiệp|^tên dn/i },
   { key: "short_name",           label: "Tên viết tắt",             match: /viết tắt/i },
   { key: "en_name",              label: "Tên tiếng Anh",            match: /tiếng anh/i },
+  // Đặt trước "legal_rep" (khớp /đại diện/) và trước "address" (khớp /^địa chỉ/) — trường nào khớp trước thì chiếm cột đó
+  { key: "rep_offices",          label: "Văn phòng đại diện",       match: /văn phòng đại diện|vpđd/i },
+  { key: "biz_locations",        label: "Địa điểm kinh doanh",      match: /địa điểm kinh doanh|đđkd/i },
+  { key: "branches",             label: "Chi nhánh",                match: /chi nhánh/i },
+  { key: "contact_address",      label: "Địa chỉ liên hệ",          match: /địa chỉ liên hệ|đc liên hệ/i },
   { key: "legal_rep",            label: "Người đại diện theo PL",   match: /đại diện/i },
   { key: "training_address",     label: "Địa chỉ CSVC đào tạo",       match: /địa chỉ.*(đào tạo|csđt|cơ sở vật chất)/i },
   { key: "address",              label: "Địa chỉ trụ sở chính",       match: /^địa chỉ/i },
@@ -170,7 +209,8 @@ window.REP_TITLES = ["Tổng giám đốc", "Giám đốc", "Chủ tịch HĐQT"
 // Bỏ trường nào khỏi danh sách này thì thay đổi của nó không vào lịch sử.
 window.TRACKED_COMPANY_FIELDS = [
   "tax_code", "reg_first_date", "reg_place", "name", "short_name", "en_name", "company_type",
-  "legal_rep", "address", "province", "phone", "fax", "email", "website",
+  "legal_rep", "address", "contact_address", "rep_offices", "biz_locations", "branches",
+  "province", "phone", "fax", "email", "website",
   "training_facility", "training_address",
   "charter_capital", "staff_list", "markets",
   "deposit_amount", "deposit_bank", "deposit_account", "deposit_date", "deposit_ref",
@@ -188,7 +228,7 @@ window.TIMELINE_GROUPS = [
   { key: "rep",        label: "Người đại diện" },
   { key: "facility",   label: "Cơ sở đào tạo" },
   { key: "deposit",    label: "Ký quỹ" },
-  { key: "capital",    label: "Vốn, trụ sở" },
+  { key: "capital",    label: "Vốn, trụ sở, địa điểm" },
   { key: "staff",      label: "Nhân viên nghiệp vụ" },
   { key: "market",     label: "Thị trường hoạt động" },
   { key: "violation",  label: "Xử phạt VPHC" },

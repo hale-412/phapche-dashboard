@@ -72,6 +72,11 @@ create table if not exists public.tasks (
 -- Nâng cấp DB đã tạo trước 2026-09-18 (an toàn khi chạy lại)
 alter table public.tasks add column if not exists tax_code text;
 alter table public.tasks add column if not exists biz_type text;
+-- Nâng cấp DB đã tạo trước 2026-10-12: nội dung cập nhật cụ thể của hồ sơ "Cập nhật thông tin DN"
+--   update_fields: [{"field":"address","label":"Địa chỉ trụ sở chính","old_value":"…","new_value":"…"}]
+alter table public.tasks add column if not exists update_fields     jsonb;
+alter table public.tasks add column if not exists update_applied_at timestamptz;
+alter table public.tasks add column if not exists update_applied_by uuid references public.profiles(id);
 create index if not exists tasks_deadline_idx on public.tasks(deadline);
 create index if not exists tasks_handler1_idx on public.tasks(handler1);
 create index if not exists tasks_handler2_idx on public.tasks(handler2);
@@ -601,6 +606,11 @@ alter table public.companies add column if not exists markets         text;  -- 
 -- Nang cap DB da tao truoc 2026-10-02: thong tin Giay chung nhan DKDN
 alter table public.companies add column if not exists reg_first_date  date;
 alter table public.companies add column if not exists reg_place       text;
+-- Nang cap DB da tao truoc 2026-10-12: dia chi lien he + cac dia diem khac tru so chinh
+alter table public.companies add column if not exists contact_address text;  -- Dia chi lien he (neu khac tru so chinh)
+alter table public.companies add column if not exists rep_offices     text;  -- Van phong dai dien (moi dong 1 dia diem)
+alter table public.companies add column if not exists biz_locations   text;  -- Dia diem kinh doanh (moi dong 1 dia diem)
+alter table public.companies add column if not exists branches        text;  -- Chi nhanh (moi dong 1 dia diem)
 
 create unique index if not exists companies_tax_code_uidx on public.companies(tax_code) where tax_code is not null;
 create index if not exists companies_name_idx     on public.companies(lower(name));

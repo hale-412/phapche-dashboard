@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>[Dùng thử] Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=21">
+<link rel="stylesheet" href="css/style.css?v=22">
 </head>
 <body>
 
@@ -243,6 +243,18 @@
           <datalist id="t-tax_code-list"></datalist>
           <small id="t-company-info" class="company-info" hidden></small>
         </label>
+
+        <!-- Chỉ hiện với hồ sơ "Cập nhật thông tin DN": cập nhật cụ thể thông tin gì trong Profile DN -->
+        <fieldset id="t-update-wrap" class="span-2 form-box" hidden>
+          <legend>Cập nhật cụ thể thông tin gì</legend>
+          <div class="upd-pick" id="t-update-pick"><!-- danh mục nạp từ window.BIZ_UPDATE_FIELDS --></div>
+          <div class="upd-values" id="t-update-values"></div>
+          <div class="upd-foot">
+            <small id="t-update-hint" class="muted">Tích chọn thông tin doanh nghiệp đề nghị cập nhật, nhập giá trị mới, rồi bấm <b>Áp dụng vào hồ sơ DN</b>.</small>
+            <div class="spacer"></div>
+            <button type="button" class="btn ghost lead-only" id="apply-update-btn">Áp dụng vào hồ sơ DN</button>
+          </div>
+        </fieldset>
         <label>Số văn bản<input id="t-doc_number" class="lead-field"></label>
         <label>Ngày văn bản<input type="date" id="t-doc_date" class="lead-field"></label>
         <label>Ngày đến<input type="date" id="t-received_date" class="lead-field"></label>
@@ -448,8 +460,25 @@
             </div>
           </fieldset>
           <fieldset class="span-2 form-box">
+            <legend>Văn phòng đại diện, địa điểm kinh doanh, chi nhánh</legend>
+            <div class="form-grid">
+              <label class="span-2">Văn phòng đại diện <span class="muted">(mỗi dòng một địa điểm)</span>
+                <textarea id="c-rep_offices" rows="3" class="lead-field" placeholder="VPĐD tại Nhật Bản: ...&#10;VPĐD tại Đài Loan: ..."></textarea>
+              </label>
+              <label class="span-2">Địa điểm kinh doanh <span class="muted">(mỗi dòng một địa điểm)</span>
+                <textarea id="c-biz_locations" rows="3" class="lead-field"></textarea>
+              </label>
+              <label class="span-2">Chi nhánh <span class="muted">(mỗi dòng một chi nhánh)</span>
+                <textarea id="c-branches" rows="3" class="lead-field"></textarea>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset class="span-2 form-box">
             <legend>Liên hệ</legend>
             <div class="form-grid">
+              <label class="span-2">Địa chỉ liên hệ <span class="muted">(nếu khác trụ sở chính)</span>
+                <textarea id="c-contact_address" rows="2" class="lead-field"></textarea>
+              </label>
               <label>Điện thoại<input id="c-phone" class="lead-field"></label>
               <label>Fax<input id="c-fax" class="lead-field"></label>
               <label>Email<input id="c-email" class="lead-field"></label>
@@ -873,13 +902,13 @@
 <!-- CHẾ ĐỘ DÙNG THỬ TRÊN MÁY: dữ liệu lưu trong localStorage của trình duyệt này.
      ?sample=1 nạp dữ liệu mẫu · ?reset=1 xóa hết · ?user=N xem với vai người thứ N trong danh sách -->
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=21"></script>
+<script src="js/config.js?v=22"></script>
 <script>
   window.MOCK_USER = +(new URLSearchParams(location.search).get("user") || 1);
   window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
 </script>
-<script src="js/demo-data.js?v=21"></script>
-<script src="js/app.js?v=21"></script>
+<script src="js/demo-data.js?v=22"></script>
+<script src="js/app.js?v=22"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>
