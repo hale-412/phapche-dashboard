@@ -53,6 +53,16 @@
   const CODE_RE = new RegExp("\\b(" + Object.keys(CODE_LABEL).join("|") + ")\\b", "g");
   const prettyLog = (d) => String(d || "").replace(CODE_RE, (m) => CODE_LABEL[m] || m);
 
+  // Tab "Văn bản / Công việc" hiện cả văn bản hành chính (tasks) lẫn hồ sơ doanh nghiệp (licenses)
+  // → các hàm dưới đây quy đổi tên cột khác nhau của 2 bảng về cùng một kiểu dữ liệu.
+  const vDoc = (t) => (isLicense(t) ? t.file_number : t.doc_number);
+  const vDate = (t) => (isLicense(t) ? t.doc_date || t.received_date : t.doc_date);
+  const vFrom = (t) => (isLicense(t) ? t.company_name : t.sender);
+  const vCat = (t) => (isLicense(t) ? t.procedure : t.category);
+  const vSub = (t) => (isLicense(t) ? t.update_item : [t.biz_type, t.update_item].filter(Boolean).join(" · "));
+  const vProgress = (t) => t.progress ?? 0;
+  const statusCls = (t) => (isLicense(t) ? LSTAT_MAP[t.status]?.cls : TSTAT_MAP[t.status]?.cls) || "new";
+
   const statusLabel = (t) => (isLicense(t) ? LSTAT_MAP[t.status]?.label || t.status : isUpdate(t) ? USTAT_MAP[t.status]?.label || t.status : STATUS[t.status] || t.status);
   const isOverdue = (t) => isOpen(t) && daysLeft(t) !== null && daysLeft(t) < 0;
   const isSoon = (t) => isOpen(t) && daysLeft(t) !== null && daysLeft(t) >= 0 && daysLeft(t) <= CFG.SOON_DAYS;
@@ -219,7 +229,7 @@
       { cls: "warn", icon: "⏳", label: `Sắp đến hạn (${CFG.SOON_DAYS} ngày)`, value: t.filter(isSoon).length, sub: `${t.filter((x) => isOpen(x) && daysLeft(x) === 0).length} hôm nay`, filter: { status: "open", due: "3d" } },
       { cls: "crit", icon: "⚠️", label: "Quá hạn", value: t.filter(isOverdue).length, sub: "cần xử lý ngay", filter: { status: "open", due: "overdue" } },
       { cls: "good", icon: "✅", label: "Hoàn thành tháng này", value: t.filter((x) => x.status === "done" && (x.updated_at || "").startsWith(ym)).length, sub: `tổng ${t.filter((x) => x.status === "done").length} hoàn thành`, filter: { status: "done" } },
-      { cls: "", icon: "📋", label: "Hồ sơ GP đang xử lý", value: state.licenses.filter(isOpen).length, sub: `${state.licenses.filter(isOverdue).length} quá hạn · ${state.licenses.filter((x) => x.status === "supplement").length} chờ bổ sung`, view: "licenses", filter: { status: "open" } },
+      { cls: "", icon: "📋", label: "Hồ sơ DN đang xử lý", value: state.licenses.filter(isOpen).length, sub: `${state.licenses.filter(isOverdue).length} quá hạn · ${state.licenses.filter((x) => x.status === "supplement").length} chờ bổ sung`, view: "licenses", filter: { status: "open" } },
 
       { cls: "", icon: "👤", label: "Việc của tôi", value: allItems().filter((x) => isOpen(x) && mine(x)).length, sub: `${allItems().filter((x) => mine(x) && isOverdue(x)).length} quá hạn`, filter: { status: "open", handler: state.me.id } },
     ];
@@ -255,7 +265,7 @@
     const d = dueLabel(t);
     const dot = isOverdue(t) ? "crit" : isSoon(t) ? "warn" : isOpen(t) ? "info" : "";
     const title = isLicense(t)
-      ? `<span class="tag license">Hồ sơ GP</span> ${esc(t.procedure)} · ${esc(t.company_name)}`
+      ? `<span class="tag license">Hồ sơ DN</span> ${esc(t.procedure)} · ${esc(t.company_name)}`
       : isUpdate(t)
       ? `<span class="tag update">Cập nhật TTDN</span> ${esc(t.company_name)} · ${esc(t.update_type)}`
       : `${t.priority === "urgent" ? '<span class="tag urgent">Khẩn</span> ' : ""}${esc(t.doc_number ? t.doc_number + " · " : "")}${esc(t.content)}`;
@@ -307,7 +317,7 @@
     const q = $("#f-search").value.trim().toLowerCase();
     const st = $("#f-status").value, h = $("#f-handler").value, due = $("#f-due").value;
     const today = todayISO(), ym = today.slice(0, 7);
-    return state.tasks.filter((t) => {
+    return allItems().filter((t) => {
       if (st === "open" ? !isOpen(t) : st !== "all" && t.status !== st) return false;
       if (h && t.handler1 !== h && t.handler2 !== h) return false;
       if (due) {
@@ -318,7 +328,7 @@
         if (due === "7d" && !(d !== null && d >= 0 && d <= 7)) return false;
         if (due === "month" && !(t.deadline || "").startsWith(ym)) return false;
       }
-      if (q && !`${t.doc_number} ${t.content} ${t.sender} ${t.tax_code || ""} ${t.biz_type || ""} ${t.result} ${nameOf(t.handler1)} ${nameOf(t.handler2)}`.toLowerCase().includes(q)) return false;
+      if (q && !`${vDoc(t) || ""} ${t.content || ""} ${vFrom(t) || ""} ${t.tax_code || ""} ${vCat(t) || ""} ${vSub(t) || ""} ${t.license_number || ""} ${t.result || ""} ${nameOf(t.handler1)} ${nameOf(t.handler2)}`.toLowerCase().includes(q)) return false;
       return true;
     });
   }
@@ -327,7 +337,11 @@
     const { key, dir } = state.sort;
     const val = (t) => {
       if (key === "handler1" || key === "handler2") return nameOf(t[key]);
-      if (key === "deadline" || key === "doc_date") return t[key] || "9999-99-99";
+      if (key === "doc_number") return vDoc(t) ?? "";
+      if (key === "doc_date") return vDate(t) || "9999-99-99";
+      if (key === "deadline") return t[key] || "9999-99-99";
+      if (key === "status") return statusLabel(t);
+      if (key === "progress") return vProgress(t);
       return t[key] ?? "";
     };
     return list.sort((a, b) => {
@@ -344,15 +358,16 @@
     $("#tasks-body").innerHTML = list.map((t) => {
       const d = dueLabel(t);
       const rowCls = isOverdue(t) ? "overdue" : isSoon(t) ? "soon" : "";
-      return `<tr data-id="${t.id}" class="${rowCls}">
-        <td class="nowrap mono">${esc(t.doc_number) || "—"}${t.priority === "urgent" ? ' <span class="tag urgent">Khẩn</span>' : ""}</td>
-        <td class="nowrap mono">${fmtDate(t.doc_date)}</td>
-        <td class="content-cell">${esc(t.content)}<div class="sender">${esc(t.sender || "")}${t.category && t.category !== "Văn bản đến" ? " · " + esc(t.category) : ""}${t.biz_type ? " · " + esc(t.biz_type) : ""}${t.update_item ? " · " + esc(t.update_item) : ""}${t.tax_code ? " · MSDN " + esc(t.tax_code) : ""}</div></td>
+      const cat = vCat(t), sub = vSub(t);
+      return `<tr data-id="${t.id}" data-kind="${isLicense(t) ? "license" : "task"}" class="${rowCls}">
+        <td class="nowrap mono">${esc(vDoc(t)) || "—"}${t.priority === "urgent" ? ' <span class="tag urgent">Khẩn</span>' : ""}</td>
+        <td class="nowrap mono">${fmtDate(vDate(t))}</td>
+        <td class="content-cell">${esc(t.content || (isLicense(t) ? cat : ""))}<div class="sender">${isLicense(t) ? '<span class="tag license">Hồ sơ DN</span> ' : ""}${esc(vFrom(t) || "")}${cat && cat !== "Văn bản đến" ? " · " + esc(cat) : ""}${sub ? " · " + esc(sub) : ""}${t.tax_code ? " · MSDN " + esc(t.tax_code) : ""}</div></td>
         <td class="nowrap"><span class="mono">${fmtDate(t.deadline)}</span><br><span class="due ${d.cls}">${esc(d.text)}</span></td>
         <td>${esc(nameOf(t.handler1))}</td>
         <td>${t.handler2 ? esc(nameOf(t.handler2)) : '<span class="muted">—</span>'}</td>
-        <td><div class="progress"><div class="track"><div class="fill ${t.status === "done" ? "done" : ""}" style="width:${t.progress}%"></div></div><span>${t.progress}%</span></div></td>
-        <td><span class="tag ${TSTAT_MAP[t.status]?.cls || "new"}">${esc(statusLabel(t))}</span></td>
+        <td><div class="progress"><div class="track"><div class="fill ${statusCls(t) === "done" ? "done" : ""}" style="width:${vProgress(t)}%"></div></div><span>${vProgress(t)}%</span></div></td>
+        <td><span class="tag ${statusCls(t)}">${esc(statusLabel(t))}</span></td>
       </tr>`;
     }).join("");
   }
@@ -422,7 +437,11 @@
 
   function fillTaskSelects() {
     const st = TSTAT.map((s) => `<option value="${s.value}">${esc(s.label)}</option>`).join("");
-    $("#f-status").innerHTML = `<option value="open">Đang mở (chưa hoàn thành)</option>` + st + `<option value="all">Tất cả</option>`;
+    const sl = LSTAT.map((s) => `<option value="${s.value}">${esc(s.label)}</option>`).join("");
+    $("#f-status").innerHTML = `<option value="open">Đang mở (chưa hoàn thành)</option>`
+      + `<optgroup label="Văn bản hành chính">${st}</optgroup>`
+      + `<optgroup label="Hồ sơ doanh nghiệp">${sl}</optgroup>`
+      + `<option value="all">Tất cả</option>`;
     $("#t-status").innerHTML = st;
   }
 
@@ -433,9 +452,29 @@
     const pr = PROCEDURES.map((p) => `<option>${esc(p)}</option>`).join("");
     $("#l-procedure").innerHTML = `<option value="">Mọi thủ tục</option>` + pr;
     $("#l-procedure-f").innerHTML = pr;
+    $("#l-update_item").innerHTML = `<option value="">— Chọn thông tin —</option>`
+      + (window.BIZ_UPDATE_ITEMS || []).map((x) => `<option>${esc(x)}</option>`).join("");
   }
 
-  // ---------- Hồ sơ Giấy phép ----------
+  // ---------- Hồ sơ doanh nghiệp ----------
+  // Thủ tục "Đề nghị khác" → ô nhập tự do, nội dung lưu thắng vào licenses.procedure
+  // Thủ tục "Cập nhật thông tin DN" → ô chọn "Cập nhật thông tin gì" (licenses.update_item)
+  const LIC_OTHER = "Đề nghị khác";
+  const LIC_UPDATE = "Cập nhật thông tin DN";
+  function syncLicenseFields() {
+    const v = $("#l-procedure-f").value;
+    $("#l-procedure-other-wrap").hidden = v !== LIC_OTHER;
+    $("#l-procedure-other").required = v === LIC_OTHER;
+    $("#l-update_item-wrap").hidden = v !== LIC_UPDATE;
+    $("#l-update_item").required = v === LIC_UPDATE;
+  }
+  function licProcedureValue() {
+    const v = $("#l-procedure-f").value;
+    if (v !== LIC_OTHER) return v;
+    return $("#l-procedure-other").value.trim() || LIC_OTHER;
+  }
+
+
   function applyLicenseFilter(f = {}) {
     $("#l-search").value = f.search || "";
     $("#l-status").value = f.status || "open";
@@ -450,10 +489,10 @@
     const st = $("#l-status").value, pr = $("#l-procedure").value, h = $("#l-handler").value;
     return state.licenses.filter((l) => {
       if (st === "open" ? !isOpen(l) : st !== "all" && l.status !== st) return false;
-      if (pr && l.procedure !== pr) return false;
+      if (pr && (pr === LIC_OTHER ? PROCEDURES.includes(l.procedure) : l.procedure !== pr)) return false;
       if (h && l.handler1 !== h && l.handler2 !== h) return false;
       if (state.lDue === "overdue" && !isOverdue(l)) return false;
-      if (q && !`${l.file_number} ${l.company_name} ${l.tax_code} ${l.license_number} ${nameOf(l.handler1)} ${nameOf(l.handler2)}`.toLowerCase().includes(q)) return false;
+      if (q && !`${l.file_number || ""} ${l.company_name} ${l.tax_code || ""} ${l.license_number || ""} ${l.procedure || ""} ${l.update_item || ""} ${l.content || ""} ${nameOf(l.handler1)} ${nameOf(l.handler2)}`.toLowerCase().includes(q)) return false;
       return true;
     });
   }
@@ -464,6 +503,7 @@
       if (key === "handler1" || key === "handler2") return nameOf(l[key]);
       if (key === "deadline" || key === "received_date") return l[key] || "9999-99-99";
       if (key === "status") return LSTAT.findIndex((s) => s.value === l.status);
+      if (key === "progress") return l.progress ?? 0;
       return l[key] ?? "";
     };
     return list.sort((a, b) => {
@@ -483,12 +523,13 @@
       const rowCls = isOverdue(l) ? "overdue" : isSoon(l) ? "soon" : "";
       return `<tr data-id="${l.id}" class="${rowCls}">
         <td class="nowrap mono">${esc(l.file_number) || "—"}</td>
-        <td class="content-cell"><b>${esc(l.company_name)}</b><div class="sender">${l.tax_code ? "MSDN " + esc(l.tax_code) : ""}${l.license_number ? " · GP số " + esc(l.license_number) + (l.issued_date ? " (" + fmtDate(l.issued_date) + ")" : "") : ""}</div></td>
-        <td class="nowrap">${esc(l.procedure)}</td>
+        <td class="content-cell"><b>${esc(l.company_name)}</b>${l.content ? " — " + esc(l.content) : ""}<div class="sender">${l.tax_code ? "MSDN " + esc(l.tax_code) : ""}${l.update_item ? " · " + esc(l.update_item) : ""}${l.license_number ? " · GP số " + esc(l.license_number) + (l.issued_date ? " (" + fmtDate(l.issued_date) + ")" : "") : ""}</div></td>
+        <td class="nowrap">${esc(l.procedure)}${l.priority === "urgent" ? ' <span class="tag urgent">Khẩn</span>' : ""}</td>
         <td class="nowrap mono">${fmtDate(l.received_date)}</td>
         <td class="nowrap"><span class="mono">${fmtDate(l.deadline)}</span><br><span class="due ${d.cls}">${esc(d.text)}</span></td>
         <td>${esc(nameOf(l.handler1))}</td>
         <td>${l.handler2 ? esc(nameOf(l.handler2)) : '<span class="muted">—</span>'}</td>
+        <td><div class="progress"><div class="track"><div class="fill ${s.cls === "done" ? "done" : ""}" style="width:${l.progress ?? 0}%"></div></div><span>${l.progress ?? 0}%</span></div></td>
         <td><span class="tag ${s.cls}">${esc(s.label)}</span></td>
       </tr>`;
     }).join("");
@@ -497,12 +538,23 @@
   async function openLicense(id) {
     const l = id ? state.licenses.find((x) => x.id === id) : null;
     const dlg = $("#license-dialog");
-    $("#license-dialog-title").textContent = l ? `Hồ sơ ${l.file_number || "#" + l.id} – ${l.company_name}` : "Tiếp nhận hồ sơ giấy phép";
+    $("#license-dialog-title").textContent = l ? `Hồ sơ ${l.file_number || "#" + l.id} – ${l.company_name}` : "Tiếp nhận hồ sơ doanh nghiệp";
     $("#l-id").value = l?.id || "";
     $("#l-company_name").value = l?.company_name || "";
     $("#l-tax_code").value = l?.tax_code || "";
     $("#l-file_number").value = l?.file_number || "";
-    $("#l-procedure-f").value = l?.procedure || PROCEDURES[0] || "";
+    const proc = l?.procedure || "";
+    const procOther = !!proc && !PROCEDURES.includes(proc);
+    $("#l-procedure-f").value = procOther ? LIC_OTHER : proc || PROCEDURES[0] || "";
+    $("#l-procedure-other").value = procOther ? proc : "";
+    $("#l-update_item").value = l?.update_item || "";
+    $("#l-doc_date").value = l?.doc_date || "";
+    $("#l-content").value = l?.content || "";
+    $("#l-priority").value = l?.priority || "normal";
+    $("#l-progress").value = l?.progress ?? 0;
+    $("#l-progress-val").textContent = (l?.progress ?? 0) + "%";
+    $("#l-result").value = l?.result || "";
+    syncLicenseFields();
     $("#l-received_date").value = l?.received_date || todayISO();
     $("#l-deadline").value = l?.deadline || "";
     $("#l-status-f").value = l?.status || LSTAT[0]?.value || "";
@@ -515,7 +567,7 @@
     const canEditAll = isLead();
     const canEditStatus = canEditAll || (l && mine(l));
     $$(".lead-field", dlg).forEach((el) => (el.disabled = !canEditAll));
-    ["#l-status-f", "#l-license_number", "#l-issued_date", "#l-note"].forEach((s) => ($(s).disabled = !canEditStatus));
+    ["#l-status-f", "#l-license_number", "#l-issued_date", "#l-note", "#l-progress", "#l-result"].forEach((s) => ($(s).disabled = !canEditStatus));
     $("#save-license-btn").hidden = !canEditStatus;
     $("#delete-license-btn").hidden = !(canEditAll && l);
 
@@ -536,12 +588,18 @@
       license_number: $("#l-license_number").value.trim() || null,
       issued_date: $("#l-issued_date").value || null,
       note: $("#l-note").value.trim() || null,
+      progress: +$("#l-progress").value,
+      result: $("#l-result").value.trim() || null,
     };
     if (isLead()) Object.assign(payload, {
       company_name: $("#l-company_name").value.trim(),
       tax_code: $("#l-tax_code").value.trim() || null,
       file_number: $("#l-file_number").value.trim() || null,
-      procedure: $("#l-procedure-f").value,
+      procedure: licProcedureValue(),
+      update_item: $("#l-procedure-f").value === LIC_UPDATE ? $("#l-update_item").value || null : null,
+      doc_date: $("#l-doc_date").value || null,
+      content: $("#l-content").value.trim() || null,
+      priority: $("#l-priority").value,
       received_date: $("#l-received_date").value || null,
       deadline: $("#l-deadline").value || null,
       handler1: $("#l-handler1").value || null,
@@ -568,14 +626,15 @@
 
   function exportLicensesCSV() {
     const rows = sortLicenses(filteredLicenses());
-    const head = ["Số hồ sơ", "Tên doanh nghiệp", "Mã số DN", "Thủ tục", "Ngày nhận", "Hạn trả KQ", "Phụ trách 1", "Phụ trách 2", "Trạng thái", "Số giấy phép", "Ngày cấp", "Ghi chú"];
+    const head = ["Số VB / hồ sơ", "Tên doanh nghiệp", "Mã số DN", "Thủ tục", "Cập nhật thông tin gì", "Ngày văn bản", "Nội dung", "Ngày nhận", "Hạn trả KQ", "Phụ trách 1", "Phụ trách 2", "Trạng thái", "Tiến độ %", "Số giấy phép", "Ngày cấp", "Ghi chú tiến độ", "Kết quả", "Mức độ"];
     const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [head.map(cell).join(",")].concat(rows.map((l) => [
-      l.file_number, l.company_name, l.tax_code, l.procedure, fmtDate(l.received_date), fmtDate(l.deadline),
-      nameOf(l.handler1), l.handler2 ? nameOf(l.handler2) : "", LSTAT_MAP[l.status]?.label || l.status, l.license_number, fmtDate(l.issued_date), l.note,
+      l.file_number, l.company_name, l.tax_code, l.procedure, l.update_item, fmtDate(l.doc_date), l.content, fmtDate(l.received_date), fmtDate(l.deadline),
+      nameOf(l.handler1), l.handler2 ? nameOf(l.handler2) : "", LSTAT_MAP[l.status]?.label || l.status, l.progress ?? 0, l.license_number, fmtDate(l.issued_date), l.note, l.result,
+      l.priority === "urgent" ? "Khẩn" : "",
     ].map(cell).join(",")));
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `phapche-hoso-giayphep-${todayISO()}.csv` });
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `phapche-hoso-doanhnghiep-${todayISO()}.csv` });
     a.click(); URL.revokeObjectURL(a.href);
   }
 
@@ -1067,7 +1126,11 @@
     $("#t-doc_date").value = t?.doc_date || "";
     $("#t-received_date").value = t?.received_date || todayISO();
     $("#t-sender").value = t?.sender || "";
-    $("#t-category").value = normCat(t?.category) || "Văn bản đến";
+    // Văn bản cũ còn loại việc "Doanh nghiệp" (đã bỏ khỏi danh sách) → vẫn mở xem được
+    const tcat = normCat(t?.category) || "Văn bản đến";
+    const tsel = $("#t-category");
+    if (![...tsel.options].some((o) => o.value === tcat)) tsel.add(new Option(tcat, tcat));
+    tsel.value = tcat;
     const bz = t?.biz_type || "";
     const bzOther = !!bz && !BIZ_TASK_TYPES.includes(bz);
     $("#t-biz_type").value = bzOther ? BIZ_OTHER_TYPE : bz || BIZ_TASK_TYPES[0] || "";
@@ -1262,11 +1325,12 @@
   // ---------- Xuất CSV ----------
   function exportCSV() {
     const rows = sortTasks(filteredTasks());
-    const head = ["Số VB", "Ngày VB", "Ngày đến", "Cơ quan gửi", "Loại việc", "Nội dung hồ sơ DN", "Cập nhật thông tin gì", "Mã số DN", "Nội dung", "Thời hạn", "Phụ trách 1", "Phụ trách 2", "Trạng thái", "Tiến độ %", "Ghi chú tiến độ", "Kết quả", "Mức độ"];
+    const head = ["Loại bản ghi", "Số VB / hồ sơ", "Ngày VB", "Ngày đến", "Cơ quan gửi / Doanh nghiệp", "Loại việc / Thủ tục", "Cập nhật thông tin gì", "Mã số DN", "Nội dung", "Thời hạn", "Phụ trách 1", "Phụ trách 2", "Trạng thái", "Tiến độ %", "Ghi chú tiến độ", "Kết quả", "Mức độ"];
     const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const lines = [head.map(cell).join(",")].concat(rows.map((t) => [
-      t.doc_number, fmtDate(t.doc_date), fmtDate(t.received_date), t.sender, t.category, t.biz_type, t.update_item, t.tax_code, t.content, fmtDate(t.deadline),
-      nameOf(t.handler1), t.handler2 ? nameOf(t.handler2) : "", STATUS[t.status], t.progress, t.progress_note, t.result, t.priority === "urgent" ? "Khẩn" : "",
+      isLicense(t) ? "Hồ sơ doanh nghiệp" : "Văn bản hành chính",
+      vDoc(t), fmtDate(vDate(t)), fmtDate(t.received_date), vFrom(t), vCat(t), vSub(t), t.tax_code, t.content, fmtDate(t.deadline),
+      nameOf(t.handler1), t.handler2 ? nameOf(t.handler2) : "", statusLabel(t), vProgress(t), isLicense(t) ? t.note : t.progress_note, t.result, t.priority === "urgent" ? "Khẩn" : "",
     ].map(cell).join(",")));
     const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `phapche-congviec-${todayISO()}.csv` });
@@ -1305,7 +1369,10 @@
       state.sort = { key: k, dir: state.sort.key === k && state.sort.dir === "asc" ? "desc" : "asc" };
       renderTasks();
     }));
-    $("#tasks-body").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) openTask(+tr.dataset.id); });
+    $("#tasks-body").addEventListener("click", (e) => {
+      const tr = e.target.closest("tr[data-id]");
+      if (tr) (tr.dataset.kind === "license" ? openLicense : openTask)(+tr.dataset.id);
+    });
     document.addEventListener("click", (e) => {
       const li = e.target.closest(".list-item[data-id]");
       if (li) (li.dataset.kind === "license" ? openLicense : openTask)(+li.dataset.id);
@@ -1324,6 +1391,9 @@
     }));
     $("#licenses-body").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) openLicense(+tr.dataset.id); });
     $("#add-license-btn").addEventListener("click", () => openLicense(null));
+    $("#add-biz-btn").addEventListener("click", () => openLicense(null));
+    $("#l-procedure-f").addEventListener("change", syncLicenseFields);
+    $("#l-progress").addEventListener("input", (e) => ($("#l-progress-val").textContent = e.target.value + "%"));
     $("#export-licenses-btn").addEventListener("click", exportLicensesCSV);
     $("#import-licenses-btn").addEventListener("click", () => openImport("licenses"));
     $("#license-form").addEventListener("submit", saveLicense);

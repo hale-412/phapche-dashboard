@@ -19,19 +19,36 @@ window.TASK_STATUSES = [
   { value: "cancelled",   label: "Hủy",                cls: "cancelled", final: true },
 ];
 
-// Danh sách dùng cho module Hồ sơ Giấy phép (sửa tự do; value là mã lưu trong DB, không đổi sau khi đã có dữ liệu)
+// Danh sách dùng cho module Hồ sơ doanh nghiệp (sửa tự do; value là mã lưu trong DB, không đổi sau khi đã có dữ liệu)
 window.LICENSE_STATUSES = [
-  { value: "received",   label: "Tiếp nhận",        cls: "new" },
-  { value: "reviewing",  label: "Đang thẩm định",   cls: "in_progress" },
-  { value: "supplement", label: "Yêu cầu bổ sung",  cls: "supplement" },
-  { value: "submitted",  label: "Trình lãnh đạo",   cls: "in_progress" },
-  { value: "issued",     label: "Đã cấp phép",      cls: "done",      final: true },
-  { value: "rejected",   label: "Từ chối",          cls: "cancelled", final: true },
-  { value: "withdrawn",  label: "Rút hồ sơ",        cls: "cancelled", final: true },
+  { value: "received",    label: "Tiếp nhận",            cls: "new" },
+  { value: "reviewing",   label: "Đang thẩm định",       cls: "in_progress" },
+  { value: "supplement",  label: "Yêu cầu bổ sung",      cls: "supplement" },
+  { value: "submit_dept", label: "Trình Phòng",            cls: "submit1" },
+  { value: "submitted",   label: "Trình Lãnh đạo Cục",   cls: "submit2" },
+  { value: "submit_bo",   label: "Trình Lãnh đạo Bộ",    cls: "submit3" },
+  { value: "issued",      label: "Đã cấp phép / Hoàn thành", cls: "done", final: true },
+  { value: "rejected",    label: "Từ chối",              cls: "cancelled", final: true },
+  { value: "withdrawn",   label: "Rút hồ sơ",            cls: "cancelled", final: true },
+  { value: "cancelled",   label: "Hủy",                  cls: "cancelled", final: true },
 ];
-window.LICENSE_PROCEDURES = ["Cấp mới", "Cấp đổi", "Điều chỉnh thông tin", "Cấp lại", "Thu hồi"];
+// Toàn bộ thủ tục / việc liên quan đến doanh nghiệp (tab "Hồ sơ doanh nghiệp").
+// Giữ nguyên chợ của 5 mục đầu — dữ liệu cũ đang lưu đúng chuỗi này trong licenses.procedure.
+window.LICENSE_PROCEDURES = [
+  "Cấp mới",
+  "Cấp đổi",
+  "Điều chỉnh thông tin",
+  "Cấp lại",
+  "Thu hồi",
+  "Nộp lại Giấy phép",
+  "Cập nhật thông tin DN",
+  "Đề nghị tất toán tài khoản ký quỹ",
+  "Đề nghị xác nhận lao động xuất cảnh",
+  "Đề nghị khác",   // chọn mục này → hiện ô nhập nội dung tự do (lưu thắng vào licenses.procedure)
+];
 
-// Loại việc "Doanh nghiệp" trong mô-đun Văn bản / Công việc → danh sách hồ sơ con
+// ĐÃ CHUYỂN: tất cả thủ tục doanh nghiệp nay nhập ở tab "Hồ sơ doanh nghiệp"
+// (xem LICENSE_PROCEDURES ở trên). Danh sách dưới đây chỉ còn để đọc dữ liệu cũ.
 window.BIZ_TASK_TYPES = [
   "Cập nhật thông tin DN",
   "Hồ sơ cấp mới",
@@ -92,12 +109,15 @@ window.TASK_FIELDS = [
   { key: "priority",      label: "Mức độ",             match: /mức độ|ưu tiên|khẩn/i, conv: "priority" },
 ];
 
-// Nhập từ Excel/CSV cho tab Hồ sơ Giấy phép
+// Nhập từ Excel/CSV cho tab Hồ sơ doanh nghiệp
 window.LICENSE_FIELDS = [
   { key: "file_number",    label: "Số hồ sơ",        match: /số hồ sơ|mã tiếp nhận|mã hồ sơ/i },
   { key: "company_name",   label: "Tên doanh nghiệp", match: /tên doanh nghiệp|tên công ty|^tên dn/i },
   { key: "tax_code",       label: "Mã số DN",        match: /mã số|msdn|mst/i },
   { key: "procedure",      label: "Thủ tục",         match: /thủ tục|loại hồ sơ/i },
+  { key: "update_item",    label: "Cập nhật thông tin gì", match: /cập nhật thông tin gì|thông tin cập nhật/i },
+  { key: "doc_date",       label: "Ngày văn bản",    match: /ngày văn bản|ngày vb/i, conv: "date" },
+  { key: "content",        label: "Nội dung",        match: /^nội dung$|trích yếu/i },
   { key: "received_date",  label: "Ngày nhận",       match: /ngày nhận|ngày tiếp nhận|ngày đến/i, conv: "date" },
   { key: "deadline",       label: "Hạn trả KQ",      match: /hạn trả|thời hạn|hạn xử lý/i, conv: "date" },
   { key: "handler1",       label: "Phụ trách mức 1", match: /phụ trách 1|phụ trách mức 1/i, conv: "person" },
@@ -105,7 +125,10 @@ window.LICENSE_FIELDS = [
   { key: "status",         label: "Trạng thái",      match: /trạng thái|tình trạng/i, conv: "lstatus" },
   { key: "license_number", label: "Số giấy phép",    match: /số giấy phép|^số gp/i },
   { key: "issued_date",    label: "Ngày cấp",        match: /ngày cấp/i, conv: "date" },
+  { key: "progress",       label: "Tiến độ %",       match: /tiến độ/i, conv: "int" },
   { key: "note",           label: "Ghi chú",         match: /ghi chú/i },
+  { key: "result",         label: "Kết quả",         match: /kết quả/i },
+  { key: "priority",       label: "Mức độ",         match: /mức độ|ưu tiên/i, conv: "priority" },
 ];
 
 // Module Doanh nghiệp (hồ sơ / profile doanh nghiệp, nhập từ Excel)

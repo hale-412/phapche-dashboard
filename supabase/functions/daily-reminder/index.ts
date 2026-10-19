@@ -48,7 +48,7 @@ function buildHtml(name: string, rows: Row[]) {
         <th style="text-align:left;padding:6px 8px;border-bottom:1px solid #c3c2b7">Tiến độ / Trạng thái</th>
       </tr>
       ${list.map(r => `<tr>
-        <td style="padding:6px 8px;border-bottom:1px solid #e1e0d9">${r.kind === "license" ? "Hồ sơ GP" : r.kind === "update" ? "Cập nhật TTDN" : "Văn bản"}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #e1e0d9">${r.kind === "license" ? "Hồ sơ DN" : r.kind === "update" ? "Cập nhật TTDN" : "Văn bản"}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e1e0d9">${r.ref ?? "—"}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e1e0d9">${r.title}</td>
         <td style="padding:6px 8px;border-bottom:1px solid #e1e0d9;white-space:nowrap">

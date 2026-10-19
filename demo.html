@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=24">
+<link rel="stylesheet" href="css/style.css?v=25">
 </head>
 <body>
 
@@ -36,7 +36,7 @@
     <nav class="tabs" id="tabs">
       <button data-view="overview" class="active">Tổng quan</button>
       <button data-view="tasks">Văn bản / Công việc</button>
-      <button data-view="licenses">Hồ sơ Giấy phép</button>
+      <button data-view="licenses">Hồ sơ doanh nghiệp</button>
       <button data-view="companies">Profile doanh nghiệp</button>
       <button data-view="staff">Chuyên viên</button>
     </nav>
@@ -54,7 +54,7 @@
       <div class="filters lead-only">
         <span class="muted">Thao tác nhanh:</span>
         <button class="btn primary" id="quick-add-task">+ Thêm văn bản / công việc</button>
-        <button class="btn primary" id="quick-add-license">+ Tiếp nhận hồ sơ giấy phép</button>
+        <button class="btn primary" id="quick-add-license">+ Tiếp nhận hồ sơ DN</button>
       </div>
       <div class="tiles" id="tiles"></div>
 
@@ -103,7 +103,8 @@
         <div class="spacer"></div>
         <button class="btn ghost" id="export-btn">⬇ Xuất Excel (CSV)</button>
         <button class="btn ghost lead-only" id="import-tasks-btn">⬆ Nhập từ Excel</button>
-        <button class="btn primary lead-only" id="add-task-btn">+ Thêm văn bản</button>
+        <button class="btn ghost lead-only" id="add-biz-btn" title="Hồ sơ doanh nghiệp được nhập ở tab Hồ sơ doanh nghiệp">+ Hồ sơ DN</button>
+        <button class="btn primary lead-only" id="add-task-btn">+ Văn bản hành chính</button>
       </div>
       <div class="card table-wrap">
         <table class="tasks-table" id="tasks-table">
@@ -129,7 +130,7 @@
     <section id="view-licenses" class="view" hidden>
       <div class="tiles" id="license-tiles"></div>
       <div class="filters">
-        <input type="search" id="l-search" placeholder="Tìm tên doanh nghiệp, mã số, số hồ sơ, số giấy phép…">
+        <input type="search" id="l-search" placeholder="Tìm tên doanh nghiệp, mã số, số văn bản, số giấy phép, nội dung…">
         <select id="l-status">
           <option value="open">Đang xử lý</option>
           <!-- các trạng thái nạp từ config -->
@@ -140,19 +141,20 @@
         <div class="spacer"></div>
         <button class="btn ghost" id="export-licenses-btn">⬇ Xuất Excel (CSV)</button>
         <button class="btn ghost lead-only" id="import-licenses-btn">⬆ Nhập từ Excel</button>
-        <button class="btn primary lead-only" id="add-license-btn">+ Tiếp nhận hồ sơ</button>
+        <button class="btn primary lead-only" id="add-license-btn">+ Tiếp nhận hồ sơ DN</button>
       </div>
       <div class="card table-wrap">
         <table class="tasks-table" id="licenses-table">
           <thead>
             <tr>
-              <th data-sort="file_number">Số hồ sơ</th>
-              <th data-sort="company_name" class="col-content">Doanh nghiệp</th>
+              <th data-sort="file_number">Số VB / hồ sơ</th>
+              <th data-sort="company_name" class="col-content">Doanh nghiệp &amp; nội dung</th>
               <th data-sort="procedure">Thủ tục</th>
               <th data-sort="received_date">Ngày nhận</th>
               <th data-sort="deadline">Hạn trả KQ</th>
               <th data-sort="handler1">Phụ trách 1</th>
               <th data-sort="handler2">Phụ trách 2</th>
+              <th data-sort="progress">Tiến độ</th>
               <th data-sort="status">Trạng thái</th>
             </tr>
           </thead>
@@ -234,7 +236,7 @@
           <select id="t-category" class="lead-field">
             <option>Văn bản đến</option><option>Thẩm định</option><option>Góp ý dự thảo</option>
             <option>Kiểm tra</option><option>Tham mưu</option><option>Báo cáo</option>
-            <option>Doanh nghiệp</option><option>Khác</option>
+            <option>Khác</option>
           </select>
         </label>
         <label id="t-biz_type-wrap" hidden>Nội dung hồ sơ / việc DN<select id="t-biz_type" class="lead-field"></select></label>
@@ -295,7 +297,7 @@
 <dialog id="license-dialog" class="modal">
   <form id="license-form" method="dialog">
     <div class="modal-head">
-      <h2 id="license-dialog-title">Tiếp nhận hồ sơ</h2>
+      <h2 id="license-dialog-title">Tiếp nhận hồ sơ doanh nghiệp</h2>
       <button type="button" class="btn ghost" data-close>✕</button>
     </div>
     <div class="modal-body">
@@ -303,8 +305,17 @@
       <div class="form-grid">
         <label class="span-2">Tên doanh nghiệp<input id="l-company_name" required class="lead-field"></label>
         <label>Mã số doanh nghiệp<input id="l-tax_code" class="lead-field"></label>
-        <label>Số hồ sơ / mã tiếp nhận<input id="l-file_number" class="lead-field"></label>
-        <label>Loại thủ tục<select id="l-procedure-f" class="lead-field"></select></label>
+        <label>Số văn bản / số hồ sơ<input id="l-file_number" class="lead-field"></label>
+        <label>Thủ tục / nội dung hồ sơ<select id="l-procedure-f" class="lead-field"></select></label>
+        <label id="l-procedure-other-wrap" hidden>Nội dung đề nghị khác
+          <input id="l-procedure-other" class="lead-field" placeholder="Ghi rõ nội dung đề nghị của doanh nghiệp" maxlength="200" autocomplete="off">
+        </label>
+        <label id="l-update_item-wrap" hidden>Cập nhật thông tin gì
+          <select id="l-update_item" class="lead-field"></select>
+        </label>
+        <label>Ngày văn bản<input type="date" id="l-doc_date" class="lead-field"></label>
+        <label>Mức độ<select id="l-priority" class="lead-field"><option value="normal">Bình thường</option><option value="urgent">Khẩn</option></select></label>
+        <label class="span-2">Nội dung<textarea id="l-content" rows="2" class="lead-field" placeholder="Trích yếu nội dung văn bản / đề nghị của doanh nghiệp"></textarea></label>
         <label>Ngày nhận hồ sơ<input type="date" id="l-received_date" class="lead-field"></label>
         <label>Hạn trả kết quả<input type="date" id="l-deadline" class="lead-field"></label>
         <label>Trạng thái hồ sơ<select id="l-status-f"></select></label>
@@ -315,7 +326,11 @@
         </div>
         <label>Số giấy phép<input id="l-license_number" placeholder="Điền khi đã cấp"></label>
         <label>Ngày cấp<input type="date" id="l-issued_date"></label>
-        <label class="span-2">Ghi chú<textarea id="l-note" rows="2" placeholder="Nội dung yêu cầu bổ sung, vướng mắc…"></textarea></label>
+        <label class="span-2">Tiến độ <span id="l-progress-val" class="chip">0%</span>
+          <input type="range" id="l-progress" min="0" max="100" step="5" value="0">
+        </label>
+        <label class="span-2">Ghi chú tiến độ<textarea id="l-note" rows="2" placeholder="Nội dung yêu cầu bổ sung, vướng mắc…"></textarea></label>
+        <label class="span-2">Kết quả xử lý<textarea id="l-result" rows="2" placeholder="Kết quả cuối cùng của hồ sơ"></textarea></label>
       </div>
       <div id="license-history" class="history" hidden>
         <h3>Lịch sử thay đổi</h3>
@@ -904,7 +919,7 @@
   window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
 </script>
 <script src="js/demo-data.js?v=23"></script>
-<script src="js/app.js?v=24"></script>
+<script src="js/app.js?v=25"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>

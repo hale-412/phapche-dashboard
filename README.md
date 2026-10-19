@@ -113,7 +113,13 @@ Mỗi sáng 7h30 (thứ 2-6), mỗi chuyên viên nhận email liệt kê việc
 
 - **Tổng quan**: thẻ số liệu (bấm để lọc), việc cần chú ý, khối lượng việc theo chuyên viên, việc của tôi.
 - **Văn bản / Công việc**: tìm kiếm, lọc theo trạng thái / chuyên viên / thời hạn, sắp xếp theo cột, xuất CSV mở bằng Excel.
-- **Hồ sơ Giấy phép**: tiếp nhận hồ sơ (tên DN, mã số DN, số hồ sơ, loại thủ tục, hạn trả kết quả, phụ trách mức 1/2); trạng thái chọn từ danh sách
+> **Cập nhật 19/10/2026 — cần chạy lại `supabase/schema.sql`.** Tất cả thủ tục liên quan đến doanh nghiệp
+> đã được gom về tab **Hồ sơ doanh nghiệp** (bảng `licenses`). Mục **10** của `schema.sql` thêm các cột mới
+> (`doc_date`, `content`, `update_item`, `priority`, `progress`, `result`) và **chuyển** các văn bản có loại việc
+> *Doanh nghiệp* từ bảng `tasks` sang `licenses` (kèm nhật ký). Chạy lại nhiều lần không bị trùng.
+> Tab **Văn bản / Công việc** vẫn hiện đủ cả văn bản hành chính lẫn hồ sơ doanh nghiệp (dòng hồ sơ DN có thẻ *Hồ sơ DN*).
+
+- **Hồ sơ doanh nghiệp**: tiếp nhận mọi thủ tục liên quan đến doanh nghiệp (cấp mới / cấp đổi / cấp lại / điều chỉnh / thu hồi / nộp lại GP / cập nhật TTDN / tất toán ký quỹ / xác nhận lao động xuất cảnh / đề nghị khác) (tên DN, mã số DN, số hồ sơ, loại thủ tục, hạn trả kết quả, phụ trách mức 1/2); trạng thái chọn từ danh sách
   *Tiếp nhận → Đang thẩm định → Yêu cầu bổ sung → Trình lãnh đạo → Đã cấp phép / Từ chối / Rút hồ sơ*; ghi số giấy phép & ngày cấp.
   Danh sách trạng thái và loại thủ tục sửa trong `js/config.js` (`LICENSE_STATUSES`, `LICENSE_PROCEDURES`).
   Hồ sơ quá hạn / sắp đến hạn cũng hiện trong *Việc cần chú ý* và email nhắc việc.
@@ -129,9 +135,9 @@ Mỗi sáng 7h30 (thứ 2-6), mỗi chuyên viên nhận email liệt kê việc
   - **⬆ Nhập từ Excel** (Trưởng phòng): chọn file `.xlsx` → chọn sheet → hệ thống tự nhận diện cột theo tiêu đề (bảng khớp cột có thể sửa tay,
     cột không có tiêu đề được đoán theo nội dung) → xem trước → *Nhập dữ liệu*. Dòng trùng **mã số DN** (hoặc cùng tên + số GP) được **cập nhật**, còn lại thêm mới,
     nên có thể nhập lại file nhiều lần. Sheet "Thu hồi, Nộp lại GP" nhập với trạng thái *Đã chấm dứt*. Ngày dạng số Excel hay `dd/mm/yyyy` đều đọc được.
-  - Mở một DN sẽ thấy hồ sơ giấy phép gắn với mã số đó (kèm các yêu cầu cập nhật TTDN cũ để tra cứu).
+  - Mở một DN sẽ thấy hồ sơ doanh nghiệp gắn với mã số đó (kèm các yêu cầu cập nhật TTDN cũ để tra cứu).
   - Tab Giấy phép và form Văn bản (loại việc *Doanh nghiệp*) tự điền tên DN khi gõ mã số đã có trong danh sách. Danh sách trường & mẫu tiêu đề nhận diện trong `js/config.js` (`COMPANY_FIELDS`).
-- **⬆ Nhập từ Excel** có ở cả 3 tab (Văn bản / Công việc · Hồ sơ Giấy phép · Doanh nghiệp), chỉ Trưởng phòng thấy. Đọc được `.xlsx` và `.csv`;
+- **⬆ Nhập từ Excel** có ở cả 3 tab (Văn bản / Công việc · Hồ sơ doanh nghiệp · Profile doanh nghiệp), chỉ Trưởng phòng thấy. Đọc được `.xlsx` và `.csv`;
   file xuất ra từ nút **⬇ Xuất Excel (CSV)** nhập lại được nguyên vẹn. Tên chuyên viên ở cột Phụ trách được khớp với tài khoản đã có (bỏ dấu, bỏ chức danh sau dấu "-");
   không khớp thì để trống và báo số dòng ở phần tóm tắt. Dòng trùng **số văn bản** (hoặc **số hồ sơ**, **mã số DN**) được cập nhật chứ không nhân đôi.
   Sửa danh sách cột nhận diện trong `js/config.js` (`TASK_FIELDS`, `LICENSE_FIELDS`, `COMPANY_FIELDS`).
