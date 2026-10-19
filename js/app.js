@@ -1224,13 +1224,41 @@
     const code = normTax($(codeSel).value);
     const c = code ? state.companies.find((x) => normTax(x.tax_code) === code) : null;
     const name = c ? c.name : code ? companyDir().get(code) : "";
-    if (!c && !name) { box.hidden = true; box.innerHTML = ""; return; }
-    if (commit && code) $(codeSel).value = code;
-    const rows = [["Tên đầy đủ", name], ["Tên viết tắt", c?.short_name], ["Tên tiếng Anh", c?.en_name]].filter(([, v]) => v);
+    box.dataset.tax = code;
+    box.dataset.name = name || "";
+    box.dataset.cid = c ? c.id : "";
+    if (!code) { box.hidden = true; box.innerHTML = ""; return; }
+    if (commit) $(codeSel).value = code;
+    if (!c && !name) {
+      // Mã số chưa có ở đâu → mời thêm vào Profile doanh nghiệp
+      box.innerHTML = `<span class="muted">Mã số này chưa có trong Profile doanh nghiệp.</span>`
+        + `<button type="button" class="open-profile" data-act="new">+ Thêm vào Profile doanh nghiệp ›</button>`;
+      box.hidden = false;
+      return;
+    }
+    const rows = [["Tên đầy đủ", name], ["Tên viết tắt", c?.short_name], ["Tên tiếng Anh", c?.en_name],
+      ["Giấy phép số", c?.license_number], ["Người đại diện", c?.legal_rep]].filter(([, v]) => v);
     box.innerHTML = rows.map(([k, v]) => `<span><b>${esc(k)}:</b> ${esc(v)}</span>`).join("")
-      + (c ? "" : `<span class="muted">Chưa có trong tab Doanh nghiệp — tên lấy từ hồ sơ đã nhập</span>`);
+      + (c ? `<button type="button" class="open-profile" data-act="open">Xem hồ sơ doanh nghiệp ›</button>`
+           : `<span class="muted">Chưa có trong Profile doanh nghiệp — tên lấy từ hồ sơ đã nhập</span>`
+             + `<button type="button" class="open-profile" data-act="new">+ Thêm vào Profile doanh nghiệp ›</button>`);
     box.hidden = false;
     if (name && !$(nameSel).value.trim()) $(nameSel).value = name;
+  }
+
+  // Bấm liên kết trong khung thông tin DN → mở hồ sơ doanh nghiệp (đóng hộp thoại đang mở)
+  function bindCompanyInfoBox(boxSel, dlgSel, nameSel) {
+    $(boxSel).addEventListener("click", (e) => {
+      const btn = e.target.closest("button[data-act]");
+      if (!btn) return;
+      const box = $(boxSel);
+      if (!confirm("Mở hồ sơ doanh nghiệp? Thông tin đang nhập dở ở đây sẽ không được lưu.")) return;
+      const cid = box.dataset.cid, tax = box.dataset.tax;
+      const nm = box.dataset.name || $(nameSel).value.trim();
+      $(dlgSel).close();
+      switchView("companies");
+      openCompany(btn.dataset.act === "open" && cid ? +cid : null, { tax_code: tax, name: nm });
+    });
   }
 
   // Lưu một bản ghi; nếu DB chưa có cột mới (chưa chạy phần nâng cấp trong supabase/schema.sql)
@@ -1402,6 +1430,9 @@
     $("#l-procedure-f").addEventListener("change", syncLicenseFields);
     $("#l-tax_code").addEventListener("input", () => licenseCompanyLookup(false));
     $("#l-tax_code").addEventListener("change", () => licenseCompanyLookup(true));
+    $("#l-tax_code").addEventListener("blur", () => licenseCompanyLookup(true));
+    bindCompanyInfoBox("#l-company-info", "#license-dialog", "#l-company_name");
+    bindCompanyInfoBox("#t-company-info", "#task-dialog", "#t-sender");
     $("#l-progress").addEventListener("input", (e) => ($("#l-progress-val").textContent = e.target.value + "%"));
     $("#export-licenses-btn").addEventListener("click", exportLicensesCSV);
     $("#import-licenses-btn").addEventListener("click", () => openImport("licenses"));

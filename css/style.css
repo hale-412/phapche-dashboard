@@ -62,8 +62,8 @@ h3 { font-size: 14px; color: var(--ink-2); }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .btn.ghost:hover { background: var(--surface-2); }
-.btn.biz { background: color-mix(in srgb, var(--series-2) 16%, transparent); border-color: color-mix(in srgb, var(--series-2) 45%, transparent); color: var(--series-2); font-weight: 600; }
-.btn.biz:hover { background: color-mix(in srgb, var(--series-2) 26%, transparent); }
+.btn.biz { background: #eb6834; border-color: #eb6834; color: #fff; font-weight: 600; }
+.btn.biz:hover { background: #d1521f; border-color: #d1521f; color: #fff; }
 .btn.danger { color: var(--critical-ink); border-color: var(--critical-ink); background: transparent; }
 .btn.link { background: none; border: none; color: var(--primary); }
 .btn.wide { width: 100%; }
@@ -267,6 +267,7 @@ tr.group-row td .count { font-weight: 400; color: var(--muted); font-size: 12px;
 .company-info { display: grid; gap: 2px; margin-top: 6px; padding: 6px 8px; font-size: 12px; font-weight: 400;
   border-left: 3px solid var(--primary); border-radius: 0 6px 6px 0; background: color-mix(in srgb, var(--primary) 10%, transparent); }
 .company-info b { font-weight: 600; }
+.company-info .open-profile { justify-self: start; margin-top: 2px; background: none; border: none; padding: 0; font: inherit; font-weight: 600; color: var(--primary); cursor: pointer; text-decoration: underline; }
 
 /* ============ Hồ sơ doanh nghiệp đầy đủ (tab lịch sử) ============ */
 .ctabs {
