@@ -8,6 +8,10 @@
 -- =====================================================================
 
 -- 10.1 Các cột mới: hồ sơ DN nay mang đủ thông tin như một văn bản
+--      (3 dòng đầu lặp lại từ mục 2 — để chạy riêng đoạn này cũng không báo thiếu cột)
+alter table public.tasks    add column if not exists tax_code    text;
+alter table public.tasks    add column if not exists biz_type    text;
+alter table public.tasks    add column if not exists update_item text;
 alter table public.licenses add column if not exists doc_date      date;
 alter table public.licenses add column if not exists content       text;
 alter table public.licenses add column if not exists update_item   text;
