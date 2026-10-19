@@ -432,7 +432,9 @@
   }
   function fillCompanySelect() {
     const dir = companyDir();
-    $("#t-tax_code-list").innerHTML = [...dir].map(([c, n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join("");
+    const html = [...dir].map(([c, n]) => `<option value="${esc(c)}">${esc(n)}</option>`).join("");
+    $("#t-tax_code-list").innerHTML = html;
+    $("#l-tax_code-list").innerHTML = html;
   }
 
   function fillTaskSelects() {
@@ -555,6 +557,7 @@
     $("#l-progress-val").textContent = (l?.progress ?? 0) + "%";
     $("#l-result").value = l?.result || "";
     syncLicenseFields();
+    licenseCompanyLookup(false);
     $("#l-received_date").value = l?.received_date || todayISO();
     $("#l-deadline").value = l?.deadline || "";
     $("#l-status-f").value = l?.status || LSTAT[0]?.value || "";
@@ -1212,18 +1215,22 @@
 
   // Gõ mã số DN đã có trên hệ thống → hiện tên doanh nghiệp (đầy đủ / viết tắt / tiếng Anh)
   // và tự điền ô Cơ quan gửi nếu đang trống. commit = true → chuẩn hóa luôn mã số vừa gõ.
-  function taskCompanyLookup(commit) {
-    const box = $("#t-company-info");
-    const code = normTax($("#t-tax_code").value);
+  const taskCompanyLookup = (commit) => companyLookup(commit, "#t-tax_code", "#t-company-info", "#t-sender");
+  const licenseCompanyLookup = (commit) => companyLookup(commit, "#l-tax_code", "#l-company-info", "#l-company_name");
+
+  // Gõ mã số DN đã có trên hệ thống → hiện tên doanh nghiệp + tự điền ô tên nếu đang trống.
+  function companyLookup(commit, codeSel, boxSel, nameSel) {
+    const box = $(boxSel);
+    const code = normTax($(codeSel).value);
     const c = code ? state.companies.find((x) => normTax(x.tax_code) === code) : null;
     const name = c ? c.name : code ? companyDir().get(code) : "";
     if (!c && !name) { box.hidden = true; box.innerHTML = ""; return; }
-    if (commit && code) $("#t-tax_code").value = code;
+    if (commit && code) $(codeSel).value = code;
     const rows = [["Tên đầy đủ", name], ["Tên viết tắt", c?.short_name], ["Tên tiếng Anh", c?.en_name]].filter(([, v]) => v);
     box.innerHTML = rows.map(([k, v]) => `<span><b>${esc(k)}:</b> ${esc(v)}</span>`).join("")
       + (c ? "" : `<span class="muted">Chưa có trong tab Doanh nghiệp — tên lấy từ hồ sơ đã nhập</span>`);
     box.hidden = false;
-    if (name && !$("#t-sender").value.trim()) $("#t-sender").value = name;
+    if (name && !$(nameSel).value.trim()) $(nameSel).value = name;
   }
 
   // Lưu một bản ghi; nếu DB chưa có cột mới (chưa chạy phần nâng cấp trong supabase/schema.sql)
@@ -1393,6 +1400,8 @@
     $("#add-license-btn").addEventListener("click", () => openLicense(null));
     $("#add-biz-btn").addEventListener("click", () => openLicense(null));
     $("#l-procedure-f").addEventListener("change", syncLicenseFields);
+    $("#l-tax_code").addEventListener("input", () => licenseCompanyLookup(false));
+    $("#l-tax_code").addEventListener("change", () => licenseCompanyLookup(true));
     $("#l-progress").addEventListener("input", (e) => ($("#l-progress-val").textContent = e.target.value + "%"));
     $("#export-licenses-btn").addEventListener("click", exportLicensesCSV);
     $("#import-licenses-btn").addEventListener("click", () => openImport("licenses"));

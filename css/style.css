@@ -62,6 +62,8 @@ h3 { font-size: 14px; color: var(--ink-2); }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
 .btn.ghost:hover { background: var(--surface-2); }
+.btn.biz { background: color-mix(in srgb, var(--series-2) 16%, transparent); border-color: color-mix(in srgb, var(--series-2) 45%, transparent); color: var(--series-2); font-weight: 600; }
+.btn.biz:hover { background: color-mix(in srgb, var(--series-2) 26%, transparent); }
 .btn.danger { color: var(--critical-ink); border-color: var(--critical-ink); background: transparent; }
 .btn.link { background: none; border: none; color: var(--primary); }
 .btn.wide { width: 100%; }

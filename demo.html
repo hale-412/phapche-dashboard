@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=25">
+<link rel="stylesheet" href="css/style.css?v=26">
 </head>
 <body>
 
@@ -103,7 +103,7 @@
         <div class="spacer"></div>
         <button class="btn ghost" id="export-btn">⬇ Xuất Excel (CSV)</button>
         <button class="btn ghost lead-only" id="import-tasks-btn">⬆ Nhập từ Excel</button>
-        <button class="btn ghost lead-only" id="add-biz-btn" title="Hồ sơ doanh nghiệp được nhập ở tab Hồ sơ doanh nghiệp">+ Hồ sơ DN</button>
+        <button class="btn biz lead-only" id="add-biz-btn" title="Hồ sơ doanh nghiệp được nhập ở tab Hồ sơ doanh nghiệp">+ Hồ sơ DN</button>
         <button class="btn primary lead-only" id="add-task-btn">+ Văn bản hành chính</button>
       </div>
       <div class="card table-wrap">
@@ -304,7 +304,11 @@
       <input type="hidden" id="l-id">
       <div class="form-grid">
         <label class="span-2">Tên doanh nghiệp<input id="l-company_name" required class="lead-field"></label>
-        <label>Mã số doanh nghiệp<input id="l-tax_code" class="lead-field"></label>
+        <label>Mã số doanh nghiệp
+          <input id="l-tax_code" class="lead-field" list="l-tax_code-list" placeholder="VD: 0101234567" autocomplete="off">
+          <datalist id="l-tax_code-list"></datalist>
+          <small id="l-company-info" class="company-info" hidden></small>
+        </label>
         <label>Số văn bản / số hồ sơ<input id="l-file_number" class="lead-field"></label>
         <label>Thủ tục / nội dung hồ sơ<select id="l-procedure-f" class="lead-field"></select></label>
         <label id="l-procedure-other-wrap" hidden>Nội dung đề nghị khác
@@ -919,7 +923,7 @@
   window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
 </script>
 <script src="js/demo-data.js?v=23"></script>
-<script src="js/app.js?v=25"></script>
+<script src="js/app.js?v=26"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>
