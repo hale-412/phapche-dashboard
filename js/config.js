@@ -41,6 +41,7 @@ window.BIZ_TASK_TYPES = [
   "Nộp lại Giấy phép",
   "Đề nghị tất toán tài khoản ký quỹ",
   "Đề nghị xác nhận lao động xuất cảnh",
+  "Đề nghị khác",   // chọn mục này → hiện ô nhập nội dung tự do (lưu thắng vào tasks.biz_type)
 ];
 
 // Module Cập nhật thông tin doanh nghiệp

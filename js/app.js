@@ -1068,7 +1068,10 @@
     $("#t-received_date").value = t?.received_date || todayISO();
     $("#t-sender").value = t?.sender || "";
     $("#t-category").value = normCat(t?.category) || "Văn bản đến";
-    $("#t-biz_type").value = t?.biz_type || BIZ_TASK_TYPES[0] || "";
+    const bz = t?.biz_type || "";
+    const bzOther = !!bz && !BIZ_TASK_TYPES.includes(bz);
+    $("#t-biz_type").value = bzOther ? BIZ_OTHER_TYPE : bz || BIZ_TASK_TYPES[0] || "";
+    $("#t-biz_other").value = bzOther ? bz : "";
     $("#t-tax_code").value = t?.tax_code || "";
     $("#t-update_item").value = t?.update_item || "";
     syncBizFields();
@@ -1123,10 +1126,25 @@
   const UITEMS = window.BIZ_UPDATE_ITEMS || [];
   const isUpdateTask = () => $("#t-category").value === CAT_BIZ && $("#t-biz_type").value === BIZ_UPDATE_TYPE;
 
+  // Hồ sơ "Đề nghị khác": nội dung tự điền được lưu thắng vào tasks.biz_type
+  // (mở lại văn bản: giá trị không nầm trong BIZ_TASK_TYPES → chọn "Đề nghị khác" + đổ vào ô nhập)
+  const BIZ_OTHER_TYPE = "Đề nghị khác";
+  const isOtherBizTask = () => $("#t-category").value === CAT_BIZ && $("#t-biz_type").value === BIZ_OTHER_TYPE;
+  function bizTypeValue() {
+    if ($("#t-category").value !== CAT_BIZ) return null;
+    const v = $("#t-biz_type").value;
+    if (v !== BIZ_OTHER_TYPE) return v || null;
+    return $("#t-biz_other").value.trim() || BIZ_OTHER_TYPE;
+  }
+
   function syncUpdateBlock() {
     const on = isUpdateTask();
     $("#t-update_item-wrap").hidden = !on;
     $("#t-update_item").required = on;
+    // "Đề nghị khác" → cho phép điền nội dung
+    const other = isOtherBizTask();
+    $("#t-biz_other-wrap").hidden = !other;
+    $("#t-biz_other").required = other;
   }
 
   // Gõ mã số DN đã có trên hệ thống → hiện tên doanh nghiệp (đầy đủ / viết tắt / tiếng Anh)
@@ -1177,7 +1195,7 @@
       received_date: $("#t-received_date").value || null,
       sender: $("#t-sender").value.trim() || null,
       category: $("#t-category").value,
-      biz_type: $("#t-category").value === CAT_BIZ ? $("#t-biz_type").value || null : null,
+      biz_type: bizTypeValue(),
       tax_code: $("#t-category").value === CAT_BIZ ? $("#t-tax_code").value.trim() || null : null,
       priority: $("#t-priority").value,
       content: $("#t-content").value.trim(),
