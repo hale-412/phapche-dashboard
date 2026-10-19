@@ -73,3 +73,4 @@ where not exists (
 delete from public.tasks t
 where t.category in ('Doanh nghiệp', 'Cập nhật thông tin doanh nghiệp')
   and exists (select 1 from public.licenses l where l.moved_task_id = t.id);
+

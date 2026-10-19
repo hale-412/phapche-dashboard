@@ -216,7 +216,7 @@
   const allItems = () => state.tasks.concat(state.licenses);
 
   function renderAll() {
-    renderTiles(); renderAttention(); renderWorkload(); renderMine(); renderTasks(); renderLicenseTiles(); renderLicenses(); renderCompanyTiles(); renderCompanies(); renderStaff();
+    renderTiles(); renderAttention(); renderWorkload(); renderMine(); renderProfileTodo(); renderTasks(); renderLicenseTiles(); renderLicenses(); renderCompanyTiles(); renderCompanies(); renderStaff();
     const od = allItems().filter(isOverdue).length;
     document.title = `${od ? "(" + od + ") " : ""}Dashboard ${CFG.DEPT_NAME}`;
   }
@@ -283,6 +283,33 @@
   function renderAttention() {
     const list = allItems().filter((t) => isOverdue(t) || isSoon(t)).sort((a, b) => (a.deadline || "").localeCompare(b.deadline || ""));
     $("#attention-list").innerHTML = list.length ? list.slice(0, 30).map(listItem).join("") : `<p class="muted center">Không có việc nào quá hạn hoặc sắp đến hạn 👍</p>`;
+  }
+
+  // Danh sách hồ sơ đã hoàn thành nhưng chưa cập nhật Profile doanh nghiệp
+  function renderProfileTodo() {
+    const list = state.licenses.filter(needProfileUpdate)
+      .sort((a, b) => String(b.issued_date || b.updated_at || "").localeCompare(String(a.issued_date || a.updated_at || "")));
+    $("#profile-todo-card").hidden = list.length === 0;
+    $("#profile-todo-count").textContent = `${list.length} hồ sơ`;
+    $("#profile-todo-list").innerHTML = list.map((l) => `<div class="list-item" data-ptid="${l.id}">
+      <span class="dot warn"></span>
+      <div class="li-main"><b>${esc(l.company_name)}</b>${l.tax_code ? ` <span class="muted">· MSDN ${esc(l.tax_code)}</span>` : ""}
+        <div class="muted">${esc(l.procedure)}${l.license_number ? " · GP số " + esc(l.license_number) : ""}${l.issued_date ? " · " + fmtDate(l.issued_date) : ""}</div>
+        <div>${ptList(l).map((x) => `<span class="pt-chip">${esc(x)}</span>`).join(" ")}</div>
+        ${l.profile_note ? `<div class="muted">${esc(l.profile_note)}</div>` : ""}
+      </div>
+      <div class="pt-acts">
+        <button type="button" class="btn biz small" data-ptact="go" data-ptid="${l.id}">Cập nhật ›</button>
+        <button type="button" class="btn small" data-ptact="done" data-ptid="${l.id}">✓ Đã xong</button>
+      </div>
+    </div>`).join("");
+  }
+
+  async function ptMarkDone(id) {
+    const { error } = await state.sb.from("licenses").update({ profile_done_at: new Date().toISOString() }).eq("id", id);
+    if (error) { toast(error.message, true); return; }
+    toast("Đã đánh dấu cập nhật xong");
+    await loadAll();
   }
 
   function renderMine() {
@@ -574,6 +601,15 @@
     $("#save-license-btn").hidden = !canEditStatus;
     $("#delete-license-btn").hidden = !(canEditAll && l);
 
+    const ptBox = $("#l-profile-todo");
+    ptBox.hidden = !(l && needProfileUpdate(l));
+    if (l && needProfileUpdate(l)) {
+      ptBox.innerHTML = `<b>Chưa cập nhật Profile doanh nghiệp.</b> Cần cập nhật: `
+        + ptList(l).map((x) => `<span class="pt-chip">${esc(x)}</span>`).join(" ")
+        + (l.profile_note ? `<div class="muted">${esc(l.profile_note)}</div>` : "")
+        + `<div class="pt-acts"><button type="button" class="btn biz small" data-pt="go">Mở Profile doanh nghiệp ›</button>`
+        + `<button type="button" class="btn small" data-pt="done">✓ Đã cập nhật xong</button></div>`;
+    }
     $("#license-history").hidden = !l;
     if (l) {
       $("#license-history-list").innerHTML = `<li class="muted">Đang tải…</li>`;
@@ -586,6 +622,8 @@
   async function saveLicense(e) {
     e.preventDefault();
     const id = $("#l-id").value;
+    const before = id ? state.licenses.find((x) => +x.id === +id) : null;
+    const wasFinal = !!(before && LSTAT_MAP[before.status]?.final);
     const payload = {
       status: $("#l-status-f").value,
       license_number: $("#l-license_number").value.trim() || null,
@@ -617,6 +655,87 @@
     toast(id ? "Đã lưu hồ sơ" : "Đã tiếp nhận hồ sơ");
     $("#license-dialog").close();
     await loadAll();
+    // Vừa chuyển sang trạng thái kết thúc → nhắc cập nhật Profile doanh nghiệp
+    const nowFinal = !!LSTAT_MAP[payload.status]?.final;
+    if (nowFinal && !wasFinal && payload.status !== "rejected" && payload.status !== "cancelled") {
+      const fresh = state.licenses.find((x) => (id ? +x.id === +id : x.file_number === payload.file_number && x.company_name === payload.company_name));
+      if (fresh && !fresh.profile_done_at) openProfileTodo(fresh);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Nhắc cập nhật Profile doanh nghiệp sau khi hồ sơ hoàn thành
+  // (danh mục các phần cần cập nhật: window.PROFILE_UPDATE_ITEMS)
+  // ---------------------------------------------------------------
+  const PT_ITEMS = window.PROFILE_UPDATE_ITEMS || [];
+  const ptPane = (label) => PT_ITEMS.find((x) => x.label === label)?.pane || "overview";
+  const ptList = (l) => String(l.profile_todo || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const needProfileUpdate = (l) => isLicense(l) && !!l.profile_todo && !l.profile_done_at;
+
+  function openProfileTodo(l) {
+    state.ptId = l.id;
+    const done = ptList(l);
+    $("#pt-head").textContent = `${l.company_name}${l.tax_code ? " · MSDN " + l.tax_code : ""} · ${l.procedure}`
+      + (l.license_number ? ` · GP số ${l.license_number}` : "");
+    $("#pt-items").innerHTML = PT_ITEMS.map((x, i) =>
+      `<label class="pt-item"><input type="checkbox" id="pt-i${i}" value="${esc(x.label)}"${done.includes(x.label) ? " checked" : ""}><span>${esc(x.label)}</span></label>`).join("");
+    $("#pt-note").value = l.profile_note || "";
+    $("#profile-todo-dialog").showModal();
+  }
+
+  const ptChecked = () => $$("#pt-items input:checked").map((el) => el.value);
+
+  async function ptSave(payload) {
+    const id = state.ptId;
+    if (!id) return { error: null };
+    const { error } = await state.sb.from("licenses").update(payload).eq("id", id);
+    if (error) toast(error.message, true);
+    return { error };
+  }
+
+  async function ptLater() {
+    const items = ptChecked();
+    if (!items.length) { toast("Chọn ít nhất một phần cần cập nhật, hoặc bấm \"Không cần cập nhật\"", true); return; }
+    const { error } = await ptSave({ profile_todo: items.join("\n"), profile_note: $("#pt-note").value.trim() || null, profile_done_at: null });
+    if (error) return;
+    $("#profile-todo-dialog").close();
+    toast("Đã ghi lời nhắc — xem ở trang Tổng quan");
+    await loadAll();
+  }
+
+  async function ptSkip() {
+    const { error } = await ptSave({ profile_todo: null, profile_note: null, profile_done_at: new Date().toISOString() });
+    if (error) return;
+    $("#profile-todo-dialog").close();
+    await loadAll();
+  }
+
+  async function ptNow() {
+    const items = ptChecked();
+    if (!items.length) { toast("Chọn phần thông tin cần cập nhật", true); return; }
+    const l = state.licenses.find((x) => x.id === state.ptId);
+    const { error } = await ptSave({ profile_todo: items.join("\n"), profile_note: $("#pt-note").value.trim() || null, profile_done_at: null });
+    if (error) return;
+    $("#profile-todo-dialog").close();
+    await loadAll();
+    gotoCompanyProfile(l, ptPane(items[0]));
+  }
+
+  // Mở Profile doanh nghiệp theo mã số của hồ sơ, nhảy vào tab cần sửa,
+  // điền sẵn khung "Căn cứ thay đổi" bằng số / ngày văn bản của hồ sơ.
+  function gotoCompanyProfile(l, pane) {
+    if (!l) return;
+    const code = normTax(l.tax_code || "");
+    const c = code ? state.companies.find((x) => normTax(x.tax_code) === code) : null;
+    switchView("companies");
+    openCompany(c ? c.id : null, { tax_code: code, name: l.company_name });
+    if (pane && (c || !["reps", "facilities", "violations", "inspections", "adjustments", "history"].includes(pane))) showCompanyTab(pane);
+    if (c) {
+      $("#c-ev-doc_number").value = l.file_number || "";
+      $("#c-ev-doc_date").value = l.doc_date || l.issued_date || l.received_date || "";
+      $("#c-ev-note").value = `Hoàn thành thủ tục: ${l.procedure}` + (l.license_number ? ` · GP số ${l.license_number}` : "");
+    }
+    if (!c) toast("Doanh nghiệp chưa có trong Profile — điền thông tin rồi bấm Lưu", true);
   }
 
   async function deleteLicense() {
@@ -1428,6 +1547,25 @@
     $("#add-license-btn").addEventListener("click", () => openLicense(null));
     $("#add-biz-btn").addEventListener("click", () => openLicense(null));
     $("#l-procedure-f").addEventListener("change", syncLicenseFields);
+    $("#pt-later").addEventListener("click", ptLater);
+    $("#pt-skip").addEventListener("click", ptSkip);
+    $("#pt-now").addEventListener("click", ptNow);
+    $("#l-profile-todo").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-pt]");
+      if (!b) return;
+      const l = state.licenses.find((x) => +x.id === +$("#l-id").value);
+      if (b.dataset.pt === "done") { $("#license-dialog").close(); ptMarkDone(l.id); return; }
+      $("#license-dialog").close();
+      gotoCompanyProfile(l, ptPane(ptList(l)[0]));
+    });
+    $("#profile-todo-list").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-ptact]");
+      if (!b) return;
+      const l = state.licenses.find((x) => +x.id === +b.dataset.ptid);
+      if (!l) return;
+      if (b.dataset.ptact === "done") ptMarkDone(l.id);
+      else gotoCompanyProfile(l, ptPane(ptList(l)[0]));
+    });
     $("#l-tax_code").addEventListener("input", () => licenseCompanyLookup(false));
     $("#l-tax_code").addEventListener("change", () => licenseCompanyLookup(true));
     $("#l-tax_code").addEventListener("blur", () => licenseCompanyLookup(true));

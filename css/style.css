@@ -365,3 +365,14 @@ label > .was { margin-top: 4px; font-weight: 400; }
 @media (max-width: 560px) {
   .ov-row { grid-template-columns: 1fr; gap: 0; }
 }
+
+/* Nhắc cập nhật Profile doanh nghiệp sau khi hồ sơ hoàn thành */
+.notice { margin: 10px 0; padding: 10px 12px; border-radius: 10px; font-size: 13px;
+  background: color-mix(in srgb, var(--warning) 14%, transparent); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); }
+.pt-chip { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 99px; font-size: 11px;
+  background: var(--surface-2); color: var(--ink-2); }
+.pt-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.pt-items { display: grid; gap: 4px; margin: 8px 0 12px; }
+.pt-item { display: flex; align-items: flex-start; gap: 8px; font-weight: 400; cursor: pointer; }
+.pt-item input { margin-top: 3px; }
+.list-item .dot.warn { background: var(--warning); }

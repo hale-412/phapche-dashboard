@@ -61,6 +61,24 @@ window.BIZ_TASK_TYPES = [
   "Đề nghị khác",   // chọn mục này → hiện ô nhập nội dung tự do (lưu thắng vào tasks.biz_type)
 ];
 
+// Sau khi hồ sơ DN chuyển sang "Đã cấp phép / Hoàn thành" → hỏi cần cập nhật
+// những phần nào trong Profile doanh nghiệp. `pane` khớp với data-pane của tab
+// trong hồ sơ DN, bấm "Cập nhật ngay" sẽ mở đúng tab đó.
+window.PROFILE_UPDATE_ITEMS = [
+  { pane: "license",     label: "Thông tin Giấy phép (số GP, ngày cấp, hiệu lực)" },
+  { pane: "adjustments", label: "Lịch sử điều chỉnh Giấy phép (thêm lần điều chỉnh)" },
+  { pane: "name",        label: "Tên doanh nghiệp / mã số / GCN ĐKDN" },
+  { pane: "address",     label: "Địa chỉ trụ sở, liên hệ, chi nhánh, địa điểm KD" },
+  { pane: "markets",     label: "Thị trường hoạt động" },
+  { pane: "capital",     label: "Vốn điều lệ & loại hình doanh nghiệp" },
+  { pane: "deposit",     label: "Ký quỹ (số tiền, ngân hàng, tài khoản)" },
+  { pane: "reps",        label: "Người đại diện theo pháp luật" },
+  { pane: "staff",       label: "Nhân viên nghiệp vụ" },
+  { pane: "facilities",  label: "Cơ sở đào tạo / cơ sở vật chất" },
+  { pane: "violations",  label: "Xử phạt vi phạm hành chính" },
+  { pane: "inspections", label: "Thanh tra, kiểm tra" },
+];
+
 // Module Cập nhật thông tin doanh nghiệp
 window.UPDATE_TYPES = [
   "Cập nhật danh sách nhân viên nghiệp vụ",
