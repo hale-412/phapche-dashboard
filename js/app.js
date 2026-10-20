@@ -216,7 +216,7 @@
   const allItems = () => state.tasks.concat(state.licenses);
 
   function renderAll() {
-    renderTiles(); renderAttention(); renderWorkload(); renderMine(); renderProfileTodo(); renderTasks(); renderLicenseTiles(); renderLicenses(); renderCompanyTiles(); renderCompanies(); renderStaff();
+    renderTiles(); renderAttention(); renderReport(); renderWorkload(); renderMine(); renderProfileTodo(); renderTasks(); renderLicenseTiles(); renderLicenses(); renderCompanyTiles(); renderCompanies(); renderStaff();
     const od = allItems().filter(isOverdue).length;
     document.title = `${od ? "(" + od + ") " : ""}Dashboard ${CFG.DEPT_NAME}`;
   }
@@ -337,6 +337,190 @@
         <span class="val">${r.total}${r.od ? ` <span style="color:var(--critical-ink)">⚠ ${r.od}</span>` : ""}</span>
       </div>`).join("")}</div>
       <div class="legend"><span><i style="background:var(--series-1)"></i>Phụ trách mức 1</span><span><i style="background:var(--series-2)"></i>Phụ trách mức 2</span><span>⚠ quá hạn</span></div>`;
+  }
+
+  // ---------------------------------------------------------------
+  // Báo cáo tổng hợp (tab Tổng quan)
+  // ---------------------------------------------------------------
+  // Ngày "đến Phòng": ưu tiên ngày nhận / ngày đến, không có thì ngày văn bản, cuối cùng là ngày tạo bản ghi
+  const vIn = (t) => t.received_date || vDate(t) || String(t.created_at || "").slice(0, 10) || "";
+  // Loại việc cụ thể: hồ sơ DN → thủ tục (cấp đổi, điều chỉnh thông tin…), văn bản hành chính → loại việc
+  const vKindLabel = (t) => (isLicense(t) ? t.procedure : t.category) || "(chưa ghi loại)";
+
+  const RP_RANGES = [
+    { key: "week",      label: "Tuần này" },
+    { key: "lastweek",  label: "Tuần trước" },
+    { key: "month",     label: "Tháng này" },
+    { key: "lastmonth", label: "Tháng trước" },
+    { key: "quarter",   label: "Quý này" },
+    { key: "year",      label: "Năm nay" },
+    { key: "all",       label: "Tất cả (từ đầu)" },
+    { key: "custom",    label: "Khoảng ngày tự chọn…" },
+  ];
+  const isoOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+  const mondayOf = (d) => addDays(d, -((d.getDay() + 6) % 7));
+
+  function rpRange() {
+    const key = $("#rp-range").value || "month";
+    const now = new Date(todayISO());
+    const mk = (from, to, label) => ({ key, from, to, label });
+    if (key === "custom") {
+      const f = $("#rp-from").value, t = $("#rp-to").value;
+      return mk(f || "0000-01-01", t || "9999-12-31", `${f ? fmtDate(f) : "đầu kỳ"} – ${t ? fmtDate(t) : "nay"}`);
+    }
+    if (key === "all") return mk("0000-01-01", "9999-12-31", "toàn bộ dữ liệu");
+    if (key === "week" || key === "lastweek") {
+      const m = key === "week" ? mondayOf(now) : addDays(mondayOf(now), -7);
+      return mk(isoOf(m), isoOf(addDays(m, 6)), key === "week" ? "tuần này" : "tuần trước");
+    }
+    if (key === "month" || key === "lastmonth") {
+      const b = new Date(now.getFullYear(), now.getMonth() + (key === "lastmonth" ? -1 : 0), 1);
+      const e = new Date(b.getFullYear(), b.getMonth() + 1, 0);
+      return mk(isoOf(b), isoOf(e), `tháng ${b.getMonth() + 1}/${b.getFullYear()}`);
+    }
+    if (key === "quarter") {
+      const q = Math.floor(now.getMonth() / 3);
+      return mk(isoOf(new Date(now.getFullYear(), q * 3, 1)), isoOf(new Date(now.getFullYear(), q * 3 + 3, 0)), `quý ${q + 1}/${now.getFullYear()}`);
+    }
+    return mk(`${now.getFullYear()}-01-01`, `${now.getFullYear()}-12-31`, `năm ${now.getFullYear()}`);
+  }
+
+  const inRange = (t, r) => { const d = vIn(t); return !!d && d >= r.from && d <= r.to; };
+
+  // Gom theo loại việc cụ thể, nhiều → ít
+  function countByKind(list) {
+    const m = new Map();
+    list.forEach((x) => { const k = vKindLabel(x); m.set(k, (m.get(k) || 0) + 1); });
+    return [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "vi"));
+  }
+
+  function renderReport() {
+    const sel = $("#rp-range");
+    if (!sel.options.length) {
+      RP_RANGES.forEach((x) => sel.add(new Option(x.label, x.key)));
+      sel.value = "month";
+    }
+    const r = rpRange();
+    $("#rp-custom").hidden = r.key !== "custom";
+    const lic = state.licenses.filter((x) => inRange(x, r));
+    const doc = state.tasks.filter((x) => inRange(x, r));
+    $("#rp-range-label").textContent = r.key === "all"
+      ? "Kỳ báo cáo: toàn bộ dữ liệu · khối lượng đang xử lý tính theo hồ sơ chưa kết thúc"
+      : `Kỳ báo cáo: ${r.label} (${fmtDate(r.from)} – ${fmtDate(r.to)}) · đếm theo ngày đến / ngày nhận văn bản`;
+    $("#rp-incoming").innerHTML =
+      rpPanel("📋 Hồ sơ doanh nghiệp", lic, "license") +
+      rpPanel("📄 Văn bản hành chính", doc, "doc");
+    renderReportStaff(r);
+  }
+
+  function rpPanel(title, list, cls) {
+    const rows = countByKind(list), total = list.length, open = list.filter(isOpen).length;
+    const max = Math.max(1, ...rows.map((x) => x[1]));
+    return `<div class="rp-panel ${cls}">
+      <div class="rp-top"><span class="rp-title">${esc(title)}</span><span class="rp-total">${total}</span></div>
+      <div class="muted small">${open} đang xử lý · ${total - open} đã kết thúc</div>
+      ${rows.length ? `<div class="rp-rows">${rows.map(([k, n]) => `
+        <div class="rp-row"><span class="rp-k" title="${esc(k)}">${esc(k)}</span>
+          <span class="rp-bar"><i style="width:${(n / max) * 100}%"></i></span>
+          <span class="rp-n">${n}</span></div>`).join("")}</div>`
+        : `<p class="muted small center">Không có văn bản nào trong kỳ này</p>`}
+    </div>`;
+  }
+
+  function renderReportStaff(r) {
+    const open = allItems().filter(isOpen);
+    const got = allItems().filter((t) => inRange(t, r));
+    const of = (list, id) => list.filter((t) => t.handler1 === id || t.handler2 === id);
+    const rows = state.profiles.filter((p) => p.active).map((p) => {
+      const mo = of(open, p.id);
+      const lic = mo.filter(isLicense), doc = mo.filter((t) => !isLicense(t));
+      return { p, lic, doc, total: mo.length, overdue: mo.filter(isOverdue).length, soon: mo.filter(isSoon).length, got: of(got, p.id).length };
+    }).sort((a, b) => b.total - a.total || a.p.full_name.localeCompare(b.p.full_name, "vi"));
+    const sum = (k) => rows.reduce((a, x) => a + (typeof x[k] === "number" ? x[k] : x[k].length), 0);
+
+    const det = (label, list) => {
+      const c = countByKind(list);
+      return `<div class="rp-det-col"><b>${esc(label)} (${list.length})</b>
+        ${c.length ? `<ul>${c.map(([k, n]) => `<li><span>${esc(k)}</span><b>${n}</b></li>`).join("")}</ul>` : `<p class="muted small">— không có —</p>`}</div>`;
+    };
+
+    $("#rp-staff").innerHTML = `
+      <thead><tr>
+        <th>Chuyên viên</th>
+        <th class="num">Hồ sơ DN</th>
+        <th class="num">Văn bản HC</th>
+        <th class="num">Tổng đang xử lý</th>
+        <th class="num">Quá hạn</th>
+        <th class="num">Sắp đến hạn</th>
+        <th class="num">Nhận trong kỳ</th>
+      </tr></thead>
+      <tbody>${rows.map((x, i) => `
+        <tr class="rp-main">
+          <td><button type="button" class="rp-exp" data-i="${i}" title="Xem phân tách theo loại việc">▸</button> ${esc(x.p.full_name)}</td>
+          <td class="num"><button type="button" class="rp-go" data-rpgo="lic" data-pid="${x.p.id}">${x.lic.length}</button></td>
+          <td class="num"><button type="button" class="rp-go" data-rpgo="doc" data-pid="${x.p.id}">${x.doc.length}</button></td>
+          <td class="num strong">${x.total}</td>
+          <td class="num ${x.overdue ? "crit" : "zero"}">${x.overdue}</td>
+          <td class="num ${x.soon ? "warn" : "zero"}">${x.soon}</td>
+          <td class="num">${x.got}</td>
+        </tr>
+        <tr class="rp-det" hidden><td colspan="7"><div class="rp-det-wrap">${det("Hồ sơ doanh nghiệp", x.lic)}${det("Văn bản hành chính", x.doc)}</div></td></tr>`).join("")}
+      </tbody>
+      <tfoot><tr>
+        <td>Tổng cộng · ${rows.length} chuyên viên</td>
+        <td class="num">${sum("lic")}</td><td class="num">${sum("doc")}</td><td class="num strong">${sum("total")}</td>
+        <td class="num">${sum("overdue")}</td><td class="num">${sum("soon")}</td><td class="num">${sum("got")}</td>
+      </tr></tfoot>`;
+    state.rpRows = rows;
+  }
+
+  function rpStaffClick(e) {
+    const exp = e.target.closest(".rp-exp");
+    if (exp) {
+      const tr = exp.closest("tr").nextElementSibling;
+      tr.hidden = !tr.hidden;
+      exp.textContent = tr.hidden ? "▸" : "▾";
+      return;
+    }
+    const go = e.target.closest(".rp-go");
+    if (!go) return;
+    const pid = go.dataset.pid;
+    if (go.dataset.rpgo === "lic") { applyLicenseFilter({ status: "open", handler: pid }); switchView("licenses"); }
+    else { applyFilter({ status: "open", handler: pid }); switchView("tasks"); }
+  }
+
+  function exportReportCSV() {
+    const r = rpRange();
+    const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const line = (arr) => arr.map(cell).join(",");
+    const lic = state.licenses.filter((x) => inRange(x, r)), doc = state.tasks.filter((x) => inRange(x, r));
+    const L = [
+      line([`BÁO CÁO TỔNG HỢP — ${CFG.DEPT_NAME}`]),
+      line([`Kỳ báo cáo: ${r.label}`, `từ ${fmtDate(r.from)}`, `đến ${fmtDate(r.to)}`]),
+      "",
+      line(["1. VĂN BẢN / HỒ SƠ ĐẾN PHÒNG TRONG KỲ"]),
+      line(["Nhóm", "Loại việc cụ thể", "Số lượng", "Đang xử lý", "Đã kết thúc"]),
+    ];
+    [["Hồ sơ doanh nghiệp", lic], ["Văn bản hành chính", doc]].forEach(([name, list]) => {
+      L.push(line([name, "— Tổng —", list.length, list.filter(isOpen).length, list.filter((x) => !isOpen(x)).length]));
+      countByKind(list).forEach(([k, n]) => {
+        const g = list.filter((x) => vKindLabel(x) === k);
+        L.push(line([name, k, n, g.filter(isOpen).length, g.filter((x) => !isOpen(x)).length]));
+      });
+    });
+    L.push("", line(["2. KHỐI LƯỢNG ĐANG XỬ LÝ THEO CHUYÊN VIÊN"]));
+    L.push(line(["Chuyên viên", "Nhóm", "Loại việc cụ thể", "Số lượng", "Quá hạn", "Sắp đến hạn", "Nhận trong kỳ"]));
+    (state.rpRows || []).forEach((x) => {
+      L.push(line([x.p.full_name, "— Tổng —", "", x.total, x.overdue, x.soon, x.got]));
+      [["Hồ sơ doanh nghiệp", x.lic], ["Văn bản hành chính", x.doc]].forEach(([name, list]) => {
+        L.push(line([x.p.full_name, name, "Tổng nhóm", list.length]));
+        countByKind(list).forEach(([k, n]) => L.push(line([x.p.full_name, name, k, n])));
+      });
+    });
+    const blob = new Blob(["\ufeff" + L.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `phapche-baocao-${todayISO()}.csv` });
+    a.click(); URL.revokeObjectURL(a.href);
   }
 
   // ---- Bảng văn bản ----
@@ -1518,6 +1702,9 @@
 
     $$("#tabs button").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
     ["#f-search", "#f-status", "#f-handler", "#f-due"].forEach((s) => $(s).addEventListener("input", renderTasks));
+    ["#rp-range", "#rp-from", "#rp-to"].forEach((s) => $(s).addEventListener("change", renderReport));
+    $("#rp-staff").addEventListener("click", rpStaffClick);
+    $("#rp-export").addEventListener("click", exportReportCSV);
     $$("#tasks-table th[data-sort]").forEach((th) => th.addEventListener("click", () => {
       const k = th.dataset.sort;
       state.sort = { key: k, dir: state.sort.key === k && state.sort.dir === "asc" ? "desc" : "asc" };
