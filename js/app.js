@@ -406,8 +406,8 @@
     const lic = state.licenses.filter((x) => inRange(x, r));
     const doc = state.tasks.filter((x) => inRange(x, r));
     $("#rp-range-label").textContent = r.key === "all"
-      ? "Kỳ báo cáo: toàn bộ dữ liệu · khối lượng đang xử lý tính theo hồ sơ chưa kết thúc"
-      : `Kỳ báo cáo: ${r.label} (${fmtDate(r.from)} – ${fmtDate(r.to)}) · đếm theo ngày đến / ngày nhận văn bản`;
+      ? "Kỳ báo cáo: toàn bộ dữ liệu · tính theo ngày nhận văn bản"
+      : `Kỳ báo cáo: ${r.label} (${fmtDate(r.from)} – ${fmtDate(r.to)}) · tính theo ngày nhận văn bản (bỏ trống thì lấy ngày văn bản)`;
     $("#rp-incoming").innerHTML =
       rpPanel("📋 Hồ sơ doanh nghiệp", lic, "license") +
       rpPanel("📄 Văn bản hành chính", doc, "doc");
@@ -433,11 +433,11 @@
     const got = allItems().filter((t) => inRange(t, r));
     const of = (list, id) => list.filter((t) => t.handler1 === id || t.handler2 === id);
     const rows = state.profiles.filter((p) => p.active).map((p) => {
-      const mo = of(open, p.id);
-      const lic = mo.filter(isLicense), doc = mo.filter((t) => !isLicense(t));
-      return { p, lic, doc, total: mo.length, overdue: mo.filter(isOverdue).length, soon: mo.filter(isSoon).length, got: of(got, p.id).length };
-    }).sort((a, b) => b.total - a.total || a.p.full_name.localeCompare(b.p.full_name, "vi"));
-    const sum = (k) => rows.reduce((a, x) => a + (typeof x[k] === "number" ? x[k] : x[k].length), 0);
+      const gi = of(got, p.id), oi = of(open, p.id);
+      const split = (l) => ({ lic: l.filter(isLicense), doc: l.filter((t) => !isLicense(t)), total: l.length });
+      return { p, got: split(gi), open: split(oi), overdue: oi.filter(isOverdue).length, soon: oi.filter(isSoon).length };
+    }).sort((a, b) => b.got.total - a.got.total || b.open.total - a.open.total || a.p.full_name.localeCompare(b.p.full_name, "vi"));
+    const sum = (f) => rows.reduce((a, x) => a + f(x), 0);
 
     const det = (label, list) => {
       const c = countByKind(list);
@@ -446,31 +446,47 @@
     };
 
     $("#rp-staff").innerHTML = `
-      <thead><tr>
-        <th>Chuyên viên</th>
-        <th class="num">Hồ sơ DN</th>
-        <th class="num">Văn bản HC</th>
-        <th class="num">Tổng đang xử lý</th>
-        <th class="num">Quá hạn</th>
-        <th class="num">Sắp đến hạn</th>
-        <th class="num">Nhận trong kỳ</th>
-      </tr></thead>
+      <thead>
+        <tr class="rp-grp">
+          <th rowspan="2">Chuyên viên</th>
+          <th colspan="3" class="num grp-a">Nhận trong kỳ</th>
+          <th colspan="5" class="num grp-b">Đang còn xử lý (tính cả hồ sơ nhận từ kỳ trước)</th>
+        </tr>
+        <tr>
+          <th class="num grp-a">Hồ sơ DN</th><th class="num grp-a">Văn bản HC</th><th class="num grp-a">Tổng</th>
+          <th class="num grp-b">Hồ sơ DN</th><th class="num grp-b">Văn bản HC</th><th class="num grp-b">Tổng</th>
+          <th class="num grp-b">Quá hạn</th><th class="num grp-b">Sắp đến hạn</th>
+        </tr>
+      </thead>
       <tbody>${rows.map((x, i) => `
         <tr class="rp-main">
           <td><button type="button" class="rp-exp" data-i="${i}" title="Xem phân tách theo loại việc">▸</button> ${esc(x.p.full_name)}</td>
-          <td class="num"><button type="button" class="rp-go" data-rpgo="lic" data-pid="${x.p.id}">${x.lic.length}</button></td>
-          <td class="num"><button type="button" class="rp-go" data-rpgo="doc" data-pid="${x.p.id}">${x.doc.length}</button></td>
-          <td class="num strong">${x.total}</td>
+          <td class="num grp-a">${x.got.lic.length}</td>
+          <td class="num grp-a">${x.got.doc.length}</td>
+          <td class="num grp-a strong">${x.got.total}</td>
+          <td class="num"><button type="button" class="rp-go" data-rpgo="lic" data-pid="${x.p.id}">${x.open.lic.length}</button></td>
+          <td class="num"><button type="button" class="rp-go" data-rpgo="doc" data-pid="${x.p.id}">${x.open.doc.length}</button></td>
+          <td class="num strong">${x.open.total}</td>
           <td class="num ${x.overdue ? "crit" : "zero"}">${x.overdue}</td>
           <td class="num ${x.soon ? "warn" : "zero"}">${x.soon}</td>
-          <td class="num">${x.got}</td>
         </tr>
-        <tr class="rp-det" hidden><td colspan="7"><div class="rp-det-wrap">${det("Hồ sơ doanh nghiệp", x.lic)}${det("Văn bản hành chính", x.doc)}</div></td></tr>`).join("")}
+        <tr class="rp-det" hidden><td colspan="9">
+          <div class="rp-det-grp">Nhận trong kỳ</div>
+          <div class="rp-det-wrap">${det("Hồ sơ doanh nghiệp", x.got.lic)}${det("Văn bản hành chính", x.got.doc)}</div>
+          <div class="rp-det-grp">Đang còn xử lý</div>
+          <div class="rp-det-wrap">${det("Hồ sơ doanh nghiệp", x.open.lic)}${det("Văn bản hành chính", x.open.doc)}</div>
+        </td></tr>`).join("")}
       </tbody>
       <tfoot><tr>
         <td>Tổng cộng · ${rows.length} chuyên viên</td>
-        <td class="num">${sum("lic")}</td><td class="num">${sum("doc")}</td><td class="num strong">${sum("total")}</td>
-        <td class="num">${sum("overdue")}</td><td class="num">${sum("soon")}</td><td class="num">${sum("got")}</td>
+        <td class="num grp-a">${sum((x) => x.got.lic.length)}</td>
+        <td class="num grp-a">${sum((x) => x.got.doc.length)}</td>
+        <td class="num grp-a strong">${sum((x) => x.got.total)}</td>
+        <td class="num">${sum((x) => x.open.lic.length)}</td>
+        <td class="num">${sum((x) => x.open.doc.length)}</td>
+        <td class="num strong">${sum((x) => x.open.total)}</td>
+        <td class="num">${sum((x) => x.overdue)}</td>
+        <td class="num">${sum((x) => x.soon)}</td>
       </tr></tfoot>`;
     state.rpRows = rows;
   }
@@ -509,13 +525,16 @@
         L.push(line([name, k, n, g.filter(isOpen).length, g.filter((x) => !isOpen(x)).length]));
       });
     });
-    L.push("", line(["2. KHỐI LƯỢNG ĐANG XỬ LÝ THEO CHUYÊN VIÊN"]));
-    L.push(line(["Chuyên viên", "Nhóm", "Loại việc cụ thể", "Số lượng", "Quá hạn", "Sắp đến hạn", "Nhận trong kỳ"]));
+    L.push("", line(["2. THEO CHUYÊN VIÊN"]));
+    L.push(line(["Chuyên viên", "Nhóm", "Loại việc cụ thể", "Nhận trong kỳ", "Đang còn xử lý"]));
     (state.rpRows || []).forEach((x) => {
-      L.push(line([x.p.full_name, "— Tổng —", "", x.total, x.overdue, x.soon, x.got]));
-      [["Hồ sơ doanh nghiệp", x.lic], ["Văn bản hành chính", x.doc]].forEach(([name, list]) => {
-        L.push(line([x.p.full_name, name, "Tổng nhóm", list.length]));
-        countByKind(list).forEach(([k, n]) => L.push(line([x.p.full_name, name, k, n])));
+      L.push(line([x.p.full_name, "— Tổng —", "", x.got.total, `${x.open.total} (quá hạn ${x.overdue}, sắp đến hạn ${x.soon})`]));
+      [["Hồ sơ doanh nghiệp", "lic"], ["Văn bản hành chính", "doc"]].forEach(([name, k]) => {
+        L.push(line([x.p.full_name, name, "Tổng nhóm", x.got[k].length, x.open[k].length]));
+        const kinds = [...new Set(countByKind(x.got[k]).concat(countByKind(x.open[k])).map(([t]) => t))];
+        kinds.forEach((t) => L.push(line([x.p.full_name, name, t,
+          x.got[k].filter((y) => vKindLabel(y) === t).length,
+          x.open[k].filter((y) => vKindLabel(y) === t).length])));
       });
     });
     const blob = new Blob(["\ufeff" + L.join("\r\n")], { type: "text/csv;charset=utf-8" });
