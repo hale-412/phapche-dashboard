@@ -1,4 +1,4 @@
-# Sinh demo.html (che do dung thu tren may, khong can Supabase) tu index.html
+﻿# Sinh demo.html (che do dung thu tren may, khong can Supabase) tu index.html
 # Chay:  powershell -ExecutionPolicy Bypass -File build-demo.ps1
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $h = Get-Content "$root\index.html" -Raw -Encoding UTF8
