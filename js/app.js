@@ -33,6 +33,8 @@
     usort: { key: "deadline", dir: "asc" },
     csort: { key: "name", dir: "asc" },
     view: "overview",
+    ptId: null,    // hồ sơ DN đang hỏi "cần cập nhật Profile phần nào"
+    ptCtx: null,   // hồ sơ DN đang bám theo khi cập nhật trong Profile doanh nghiệp
     // Hồ sơ doanh nghiệp đang mở + 5 bảng con của nó (nạp riêng khi mở hồ sơ)
     cur: null,
     sub: { reps: [], facilities: [], violations: [], inspections: [], adjustments: [], events: [] },
@@ -309,7 +311,49 @@
     const { error } = await state.sb.from("licenses").update({ profile_done_at: new Date().toISOString() }).eq("id", id);
     if (error) { toast(error.message, true); return; }
     toast("Đã đánh dấu cập nhật xong");
+    state.ptCtx = null;
     await loadAll();
+    renderCompanyPtBar();
+  }
+
+  // ---------------------------------------------------------------
+  // Thanh nhắc việc trong Profile doanh nghiệp: vào đây từ một hồ sơ DN
+  // đã hoàn thành thì luôn thấy còn những phần nào cần cập nhật,
+  // bấm sang phần khác mà không phải thoát ra ngoài.
+  // ---------------------------------------------------------------
+  function renderCompanyPtBar() {
+    const bar = $("#c-pt-bar");
+    if (!bar) return;
+    const l = state.ptCtx ? state.licenses.find((x) => +x.id === +state.ptCtx) : null;
+    if (!l || !needProfileUpdate(l)) { bar.hidden = true; bar.innerHTML = ""; return; }
+    const items = ptList(l);
+    const cur = $("#company-tabs .ctab.on")?.dataset.ctab;
+    bar.innerHTML = `<div class="pt-bar-head">
+        <b>Cập nhật theo hồ sơ ${esc(l.file_number || "#" + l.id)}</b>
+        <span class="muted small">· còn ${items.length} phần — bấm để mở, bấm ✓ khi phần đó đã xong</span>
+        <button type="button" class="btn small" data-ptbar="alldone">✓ Xong tất cả</button>
+      </div>
+      <div class="pt-chips">${items.map((x) => `<span class="pt-task${ptPane(x) === cur ? " on" : ""}">
+        <button type="button" class="pt-task-main" data-ptopenpane="${esc(x)}" title="Mở phần này">${ptIcon(x)} ${esc(x)}</button>
+        <button type="button" class="pt-task-tick" data-pttick="${esc(x)}" title="Đã cập nhật xong phần này">✓</button>
+      </span>`).join("")}</div>`
+      + (l.profile_note ? `<div class="muted small">${esc(l.profile_note)}</div>` : "");
+    bar.hidden = false;
+  }
+
+  // Đánh dấu xong 1 phần → bỏ khỏi danh sách; hết phần thì coi như xong cả hồ sơ
+  async function ptTickItem(label) {
+    const l = state.licenses.find((x) => +x.id === +state.ptCtx);
+    if (!l) return;
+    const left = ptList(l).filter((x) => x !== label);
+    const payload = left.length
+      ? { profile_todo: left.join("\n") }
+      : { profile_todo: null, profile_done_at: new Date().toISOString() };
+    const { error } = await state.sb.from("licenses").update(payload).eq("id", l.id);
+    if (error) { toast(error.message, true); return; }
+    if (!left.length) { toast("Đã cập nhật xong toàn bộ hồ sơ này 👍"); state.ptCtx = null; }
+    await loadAll();
+    renderCompanyPtBar();
   }
 
   function renderMine() {
@@ -935,12 +979,12 @@
     box.checked = true;
     ptSyncCount();
     const items = ptChecked();
-    const l = state.licenses.find((x) => x.id === state.ptId);
     const { error } = await ptSave({ profile_todo: items.join("\n"), profile_note: $("#pt-note").value.trim() || null, profile_done_at: null });
     if (error) return;
     $("#profile-todo-dialog").close();
     await loadAll();
-    gotoCompanyProfile(l, PT_ITEMS[i].pane);
+    // lấy lại bản ghi mới nhất sau loadAll() để thanh nhắc việc có đủ danh sách
+    gotoCompanyProfile(state.licenses.find((x) => x.id === state.ptId), PT_ITEMS[i].pane);
   }
 
   async function ptSave(payload) {
@@ -971,12 +1015,11 @@
   async function ptNow() {
     const items = ptChecked();
     if (!items.length) { toast("Chọn phần thông tin cần cập nhật", true); return; }
-    const l = state.licenses.find((x) => x.id === state.ptId);
     const { error } = await ptSave({ profile_todo: items.join("\n"), profile_note: $("#pt-note").value.trim() || null, profile_done_at: null });
     if (error) return;
     $("#profile-todo-dialog").close();
     await loadAll();
-    gotoCompanyProfile(l, ptPane(items[0]));
+    gotoCompanyProfile(state.licenses.find((x) => x.id === state.ptId), ptPane(items[0]));
   }
 
   // Mở Profile doanh nghiệp theo mã số của hồ sơ, nhảy vào tab cần sửa,
@@ -987,6 +1030,8 @@
     const c = code ? state.companies.find((x) => normTax(x.tax_code) === code) : null;
     switchView("companies");
     openCompany(c ? c.id : null, { tax_code: code, name: l.company_name });
+    // Giữ lời nhắc ngay trong hồ sơ DN để còn chuyển sang phần khác mà không phải thoát ra
+    if (needProfileUpdate(l)) { state.ptCtx = l.id; renderCompanyPtBar(); }
     if (pane && (c || !["reps", "facilities", "violations", "inspections", "adjustments", "history"].includes(pane))) showCompanyTab(pane);
     if (c) {
       $("#c-ev-doc_number").value = l.file_number || "";
@@ -1165,6 +1210,8 @@
     $("#c-docref-box").hidden = !(c && canEdit);
     ["c-ev-doc_number", "c-ev-doc_date", "c-ev-note"].forEach((k) => ($("#" + k).value = ""));
     fillEventDocList(c);
+    state.ptCtx = null;            // gotoCompanyProfile() sẽ bật lại thanh nhắc việc nếu cần
+    renderCompanyPtBar();
     showCompanyTab(c ? "overview" : "name");
     renderCompanyPanes();
     dlg.showModal();
@@ -1812,6 +1859,13 @@
     $("#pt-later").addEventListener("click", ptLater);
     $("#pt-skip").addEventListener("click", ptSkip);
     $("#pt-now").addEventListener("click", ptNow);
+    $("#c-pt-bar").addEventListener("click", (e) => {
+      const open = e.target.closest("button[data-ptopenpane]");
+      if (open) { showCompanyTab(ptPane(open.dataset.ptopenpane)); return; }
+      const tick = e.target.closest("button[data-pttick]");
+      if (tick) { ptTickItem(tick.dataset.pttick); return; }
+      if (e.target.closest('button[data-ptbar="alldone"]') && state.ptCtx) ptMarkDone(state.ptCtx);
+    });
     $("#pt-items").addEventListener("change", ptSyncCount);
     $("#pt-items").addEventListener("click", (e) => {
       const b = e.target.closest("button[data-ptopen]");
@@ -1983,6 +2037,9 @@
   function showCompanyTab(name) {
     $$("#company-tabs .ctab").forEach((b) => b.classList.toggle("on", b.dataset.ctab === name));
     $$("#company-dialog .cpane").forEach((p) => (p.hidden = p.dataset.pane !== name));
+    // Làm nổi phần đang mở trên thanh nhắc việc
+    $$("#c-pt-bar .pt-task").forEach((s) => s.classList.toggle("on", $(".pt-task-main", s)?.dataset.ptopenpane
+      && ptPane($(".pt-task-main", s).dataset.ptopenpane) === name));
   }
 
   // ---------- Nạp dữ liệu 5 bảng con của 1 doanh nghiệp ----------

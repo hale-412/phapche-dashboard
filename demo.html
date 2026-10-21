@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>[Dùng thử] Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=31">
+<link rel="stylesheet" href="css/style.css?v=32">
 </head>
 <body>
 
@@ -438,6 +438,9 @@
     <div class="modal-body">
       <input type="hidden" id="c-id">
       <datalist id="c-province-list"></datalist>
+
+      <!-- Thanh nhắc việc khi vào đây từ hồ sơ DN đã hoàn thành: còn phần nào cần cập nhật -->
+      <div id="c-pt-bar" class="pt-bar" hidden></div>
 
       <!-- ===== Tổng quan: thông tin hiện tại của doanh nghiệp (chỉ xem) ===== -->
       <section class="cpane" data-pane="overview">
@@ -985,7 +988,7 @@
   window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
 </script>
 <script src="js/demo-data.js?v=32"></script>
-<script src="js/app.js?v=32"></script>
+<script src="js/app.js?v=33"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>
