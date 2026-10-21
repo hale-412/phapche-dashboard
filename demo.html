@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>[Dùng thử] Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=30">
+<link rel="stylesheet" href="css/style.css?v=31">
 </head>
 <body>
 
@@ -337,8 +337,10 @@
     </div>
     <div class="modal-body">
       <p id="pt-head" class="muted"></p>
-      <p>Thủ tục đã xong, <b>cần cập nhật những thông tin nào</b> của doanh nghiệp?</p>
+      <p>Thủ tục đã xong, <b>cần cập nhật những thông tin nào</b> của doanh nghiệp?
+        <span class="muted small">Bấm vào thẻ để chọn · bấm <b>Mở ›</b> để vào thẳng phần đó cập nhật ngay.</span></p>
       <div id="pt-items" class="pt-items"></div>
+      <p id="pt-count" class="muted small"></p>
       <label>Ghi chú cho người cập nhật<input id="pt-note" placeholder="VD: cấp đổi GP, số GP mới 123/LĐTBXH-GPHĐ"></label>
     </div>
     <div class="modal-foot">
@@ -977,13 +979,13 @@
 <!-- CHẾ ĐỘ DÙNG THỬ TRÊN MÁY: dữ liệu lưu trong localStorage của trình duyệt này.
      ?sample=1 nạp dữ liệu mẫu · ?reset=1 xóa hết · ?user=N xem với vai người thứ N trong danh sách -->
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=23"></script>
+<script src="js/config.js?v=31"></script>
 <script>
   window.MOCK_USER = +(new URLSearchParams(location.search).get("user") || 1);
   window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
 </script>
-<script src="js/demo-data.js?v=23"></script>
-<script src="js/app.js?v=31"></script>
+<script src="js/demo-data.js?v=31"></script>
+<script src="js/app.js?v=32"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>

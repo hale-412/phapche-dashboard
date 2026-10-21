@@ -295,7 +295,7 @@
       <span class="dot warn"></span>
       <div class="li-main"><b>${esc(l.company_name)}</b>${l.tax_code ? ` <span class="muted">· MSDN ${esc(l.tax_code)}</span>` : ""}
         <div class="muted">${esc(l.procedure)}${l.license_number ? " · GP số " + esc(l.license_number) : ""}${l.issued_date ? " · " + fmtDate(l.issued_date) : ""}</div>
-        <div>${ptList(l).map((x) => `<span class="pt-chip">${esc(x)}</span>`).join(" ")}</div>
+        <div class="pt-chips">${ptChips(l)}</div>
         ${l.profile_note ? `<div class="muted">${esc(l.profile_note)}</div>` : ""}
       </div>
       <div class="pt-acts">
@@ -822,8 +822,8 @@
     const ptBox = $("#l-profile-todo");
     ptBox.hidden = !(l && needProfileUpdate(l));
     if (l && needProfileUpdate(l)) {
-      ptBox.innerHTML = `<b>Chưa cập nhật Profile doanh nghiệp.</b> Cần cập nhật: `
-        + ptList(l).map((x) => `<span class="pt-chip">${esc(x)}</span>`).join(" ")
+      ptBox.innerHTML = `<b>Chưa cập nhật Profile doanh nghiệp.</b> Bấm vào phần cần cập nhật:`
+        + `<div class="pt-chips">${ptChips(l)}</div>`
         + (l.profile_note ? `<div class="muted">${esc(l.profile_note)}</div>` : "")
         + `<div class="pt-acts"><button type="button" class="btn biz small" data-pt="go">Mở Profile doanh nghiệp ›</button>`
         + `<button type="button" class="btn small" data-pt="done">✓ Đã cập nhật xong</button></div>`;
@@ -886,22 +886,62 @@
   // (danh mục các phần cần cập nhật: window.PROFILE_UPDATE_ITEMS)
   // ---------------------------------------------------------------
   const PT_ITEMS = window.PROFILE_UPDATE_ITEMS || [];
-  const ptPane = (label) => PT_ITEMS.find((x) => x.label === label)?.pane || "overview";
-  const ptList = (l) => String(l.profile_todo || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const PT_ALIAS = window.PROFILE_UPDATE_ALIASES || {};
+  // Lời nhắc cũ lưu nhãn dài → quy về nhãn mới để vẫn mở đúng phần cần cập nhật
+  const ptNorm = (label) => PT_ALIAS[label] || label;
+  const ptItem = (label) => PT_ITEMS.find((x) => x.label === ptNorm(label));
+  const ptPane = (label) => ptItem(label)?.pane || "overview";
+  const ptIcon = (label) => ptItem(label)?.icon || "•";
+  const ptList = (l) => String(l.profile_todo || "").split("\n").map((x) => ptNorm(x.trim())).filter(Boolean);
   const needProfileUpdate = (l) => isLicense(l) && !!l.profile_todo && !l.profile_done_at;
+
+  // Danh sách nội dung cần cập nhật, bấm vào mục nào → mở thẳng phần đó trong Profile DN
+  const ptChips = (l) => ptList(l).map((x) =>
+    `<button type="button" class="pt-chip go" data-ptgo="${esc(x)}" data-ptid="${l.id}" title="Mở phần này để cập nhật">`
+    + `<span class="pt-chip-ico">${ptIcon(x)}</span>${esc(x)} <span class="pt-chip-arrow">›</span></button>`).join(" ");
 
   function openProfileTodo(l) {
     state.ptId = l.id;
     const done = ptList(l);
     $("#pt-head").textContent = `${l.company_name}${l.tax_code ? " · MSDN " + l.tax_code : ""} · ${l.procedure}`
       + (l.license_number ? ` · GP số ${l.license_number}` : "");
-    $("#pt-items").innerHTML = PT_ITEMS.map((x, i) =>
-      `<label class="pt-item"><input type="checkbox" id="pt-i${i}" value="${esc(x.label)}"${done.includes(x.label) ? " checked" : ""}><span>${esc(x.label)}</span></label>`).join("");
+    $("#pt-items").innerHTML = PT_ITEMS.map((x, i) => `<div class="pt-card${done.includes(x.label) ? " on" : ""}" data-pti="${i}">
+      <label class="pt-pick" title="Chọn phần cần cập nhật">
+        <input type="checkbox" id="pt-i${i}" value="${esc(x.label)}"${done.includes(x.label) ? " checked" : ""}>
+        <span class="pt-ico">${x.icon || "•"}</span>
+        <span class="pt-txt"><b>${esc(x.label)}</b>${x.hint ? `<small>${esc(x.hint)}</small>` : ""}</span>
+      </label>
+      <button type="button" class="pt-open" data-ptopen="${i}" title="Mở phần này để cập nhật ngay">Mở ›</button>
+    </div>`).join("");
     $("#pt-note").value = l.profile_note || "";
+    $("#pt-count").textContent = "";
+    ptSyncCount();
     $("#profile-todo-dialog").showModal();
   }
 
   const ptChecked = () => $$("#pt-items input:checked").map((el) => el.value);
+
+  function ptSyncCount() {
+    $$("#pt-items .pt-card").forEach((card) => card.classList.toggle("on", !!$("input", card)?.checked));
+    const n = ptChecked().length;
+    $("#pt-count").textContent = n ? `Đã chọn ${n} phần` : "Chưa chọn phần nào";
+    $("#pt-now").disabled = n === 0;
+  }
+
+  // Bấm "Mở ›" trên một thẻ → tự chọn thẻ đó, ghi lời nhắc rồi mở đúng phần trong Profile DN
+  async function ptOpenItem(i) {
+    const box = $(`#pt-i${i}`);
+    if (!box) return;
+    box.checked = true;
+    ptSyncCount();
+    const items = ptChecked();
+    const l = state.licenses.find((x) => x.id === state.ptId);
+    const { error } = await ptSave({ profile_todo: items.join("\n"), profile_note: $("#pt-note").value.trim() || null, profile_done_at: null });
+    if (error) return;
+    $("#profile-todo-dialog").close();
+    await loadAll();
+    gotoCompanyProfile(l, PT_ITEMS[i].pane);
+  }
 
   async function ptSave(payload) {
     const id = state.ptId;
@@ -1772,15 +1812,30 @@
     $("#pt-later").addEventListener("click", ptLater);
     $("#pt-skip").addEventListener("click", ptSkip);
     $("#pt-now").addEventListener("click", ptNow);
+    $("#pt-items").addEventListener("change", ptSyncCount);
+    $("#pt-items").addEventListener("click", (e) => {
+      const b = e.target.closest("button[data-ptopen]");
+      if (b) ptOpenItem(+b.dataset.ptopen);
+    });
     $("#l-profile-todo").addEventListener("click", (e) => {
+      const l = state.licenses.find((x) => +x.id === +$("#l-id").value);
+      if (!l) return;
+      // Bấm thẳng vào một nội dung cần cập nhật → mở đúng phần đó
+      const chip = e.target.closest("button[data-ptgo]");
+      if (chip) { $("#license-dialog").close(); gotoCompanyProfile(l, ptPane(chip.dataset.ptgo)); return; }
       const b = e.target.closest("button[data-pt]");
       if (!b) return;
-      const l = state.licenses.find((x) => +x.id === +$("#l-id").value);
       if (b.dataset.pt === "done") { $("#license-dialog").close(); ptMarkDone(l.id); return; }
       $("#license-dialog").close();
       gotoCompanyProfile(l, ptPane(ptList(l)[0]));
     });
     $("#profile-todo-list").addEventListener("click", (e) => {
+      const chip = e.target.closest("button[data-ptgo]");
+      if (chip) {
+        const lc = state.licenses.find((x) => +x.id === +chip.dataset.ptid);
+        if (lc) gotoCompanyProfile(lc, ptPane(chip.dataset.ptgo));
+        return;
+      }
       const b = e.target.closest("button[data-ptact]");
       if (!b) return;
       const l = state.licenses.find((x) => +x.id === +b.dataset.ptid);

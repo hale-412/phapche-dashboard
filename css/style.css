@@ -371,10 +371,32 @@ label > .was { margin-top: 4px; font-weight: 400; }
   background: color-mix(in srgb, var(--warning) 14%, transparent); border: 1px solid color-mix(in srgb, var(--warning) 40%, transparent); }
 .pt-chip { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 99px; font-size: 11px;
   background: var(--surface-2); color: var(--ink-2); }
+/* Chip bấm được: mở thẳng phần cần cập nhật trong Profile doanh nghiệp */
+.pt-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.pt-chip.go { margin: 0; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; font: inherit; font-size: 12px;
+  border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); cursor: pointer; transition: .12s; }
+.pt-chip.go:hover { border-color: var(--series-2); background: var(--surface-2); transform: translateY(-1px); }
+.pt-chip-ico { font-size: 13px; line-height: 1; }
+.pt-chip-arrow { color: var(--ink-2); font-weight: 700; }
 .pt-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-.pt-items { display: grid; gap: 4px; margin: 8px 0 12px; }
+.pt-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin: 10px 0 8px; }
 .pt-item { display: flex; align-items: flex-start; gap: 8px; font-weight: 400; cursor: pointer; }
 .pt-item input { margin-top: 3px; }
+/* Thẻ chọn phần cần cập nhật trong hộp thoại nhắc việc */
+.pt-card { display: flex; align-items: stretch; gap: 6px; padding: 8px 10px; border: 1px solid var(--line-2);
+  border-radius: 10px; background: var(--surface); transition: .12s; }
+.pt-card:hover { border-color: var(--series-2); background: var(--surface-2); }
+.pt-card.on { border-color: var(--series-2); background: color-mix(in srgb, var(--series-2) 10%, transparent); }
+.pt-pick { flex: 1; display: flex; flex-direction: row; align-items: flex-start; gap: 8px;
+  font-weight: 400; color: var(--ink); cursor: pointer; margin: 0; min-width: 0; }
+.pt-pick input { width: auto; margin-top: 3px; flex: none; accent-color: var(--series-2); }
+.pt-ico { font-size: 16px; line-height: 1.2; flex: none; }
+.pt-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pt-txt b { font-size: 13px; font-weight: 600; }
+.pt-txt small { color: var(--ink-2); font-size: 11px; }
+.pt-open { flex: none; align-self: center; padding: 4px 8px; border: 1px solid var(--line-2); border-radius: 8px;
+  background: var(--surface-2); color: var(--ink-2); font: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.pt-open:hover { background: var(--series-2); border-color: var(--series-2); color: #fff; }
 .list-item .dot.warn { background: var(--warning); }
 
 /* ============ Báo cáo tổng hợp (tab Tổng quan) ============ */
