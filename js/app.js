@@ -685,25 +685,37 @@
     $("#l-procedure").innerHTML = `<option value="">Mọi thủ tục</option>` + pr;
     $("#l-procedure-f").innerHTML = pr;
     $("#l-update_item").innerHTML = `<option value="">— Chọn thông tin —</option>`
-      + (window.BIZ_UPDATE_ITEMS || []).map((x) => `<option>${esc(x)}</option>`).join("");
+      + (window.BIZ_UPDATE_ITEMS || []).map((x) => `<option>${esc(x)}</option>`).join("")
+      + `<option>${esc(LIC_UPDATE_OTHER)}</option>`;
   }
 
   // ---------- Hồ sơ doanh nghiệp ----------
   // Thủ tục "Đề nghị khác" → ô nhập tự do, nội dung lưu thắng vào licenses.procedure
   // Thủ tục "Cập nhật thông tin DN" → ô chọn "Cập nhật thông tin gì" (licenses.update_item)
+  // Ô chọn "Cập nhật thông tin gì" có thêm mục "Khác" → ô nhập tự do, lưu thẳng vào licenses.update_item
   const LIC_OTHER = "Đề nghị khác";
   const LIC_UPDATE = "Cập nhật thông tin DN";
+  const LIC_UPDATE_OTHER = "Khác";
   function syncLicenseFields() {
     const v = $("#l-procedure-f").value;
     $("#l-procedure-other-wrap").hidden = v !== LIC_OTHER;
     $("#l-procedure-other").required = v === LIC_OTHER;
     $("#l-update_item-wrap").hidden = v !== LIC_UPDATE;
     $("#l-update_item").required = v === LIC_UPDATE;
+    const otherItem = v === LIC_UPDATE && $("#l-update_item").value === LIC_UPDATE_OTHER;
+    $("#l-update_item-other-wrap").hidden = !otherItem;
+    $("#l-update_item-other").required = otherItem;
   }
   function licProcedureValue() {
     const v = $("#l-procedure-f").value;
     if (v !== LIC_OTHER) return v;
     return $("#l-procedure-other").value.trim() || LIC_OTHER;
+  }
+  function licUpdateItemValue() {
+    if ($("#l-procedure-f").value !== LIC_UPDATE) return null;
+    const v = $("#l-update_item").value;
+    if (v !== LIC_UPDATE_OTHER) return v || null;
+    return $("#l-update_item-other").value.trim() || LIC_UPDATE_OTHER;
   }
 
 
@@ -779,7 +791,10 @@
     const procOther = !!proc && !PROCEDURES.includes(proc);
     $("#l-procedure-f").value = procOther ? LIC_OTHER : proc || PROCEDURES[0] || "";
     $("#l-procedure-other").value = procOther ? proc : "";
-    $("#l-update_item").value = l?.update_item || "";
+    const uitem = l?.update_item || "";
+    const uitemOther = !!uitem && !(window.BIZ_UPDATE_ITEMS || []).includes(uitem);
+    $("#l-update_item").value = uitemOther ? LIC_UPDATE_OTHER : uitem;
+    $("#l-update_item-other").value = uitemOther && uitem !== LIC_UPDATE_OTHER ? uitem : "";
     $("#l-doc_date").value = l?.doc_date || "";
     $("#l-content").value = l?.content || "";
     $("#l-priority").value = l?.priority || "normal";
@@ -840,7 +855,7 @@
       tax_code: $("#l-tax_code").value.trim() || null,
       file_number: $("#l-file_number").value.trim() || null,
       procedure: licProcedureValue(),
-      update_item: $("#l-procedure-f").value === LIC_UPDATE ? $("#l-update_item").value || null : null,
+      update_item: licUpdateItemValue(),
       doc_date: $("#l-doc_date").value || null,
       content: $("#l-content").value.trim() || null,
       priority: $("#l-priority").value,
@@ -1753,6 +1768,7 @@
     $("#add-license-btn").addEventListener("click", () => openLicense(null));
     $("#add-biz-btn").addEventListener("click", () => openLicense(null));
     $("#l-procedure-f").addEventListener("change", syncLicenseFields);
+    $("#l-update_item").addEventListener("change", syncLicenseFields);
     $("#pt-later").addEventListener("click", ptLater);
     $("#pt-skip").addEventListener("click", ptSkip);
     $("#pt-now").addEventListener("click", ptNow);
