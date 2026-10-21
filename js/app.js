@@ -289,7 +289,8 @@
 
   // Danh sách hồ sơ đã hoàn thành nhưng chưa cập nhật Profile doanh nghiệp
   function renderProfileTodo() {
-    const list = state.licenses.filter(needProfileUpdate)
+    // Gồm cả hồ sơ đã hoàn thành mà chưa chọn phần nào (lỡ đóng hộp thoại nhắc việc)
+    const list = state.licenses.filter((l) => needProfileUpdate(l) || ptPending(l))
       .sort((a, b) => String(b.issued_date || b.updated_at || "").localeCompare(String(a.issued_date || a.updated_at || "")));
     $("#profile-todo-card").hidden = list.length === 0;
     $("#profile-todo-count").textContent = `${list.length} hồ sơ`;
@@ -297,11 +298,13 @@
       <span class="dot warn"></span>
       <div class="li-main"><b>${esc(l.company_name)}</b>${l.tax_code ? ` <span class="muted">· MSDN ${esc(l.tax_code)}</span>` : ""}
         <div class="muted">${esc(l.procedure)}${l.license_number ? " · GP số " + esc(l.license_number) : ""}${l.issued_date ? " · " + fmtDate(l.issued_date) : ""}</div>
-        <div class="pt-chips">${ptChips(l)}</div>
+        ${needProfileUpdate(l) ? `<div class="pt-chips">${ptChips(l)}</div>`
+          : `<div class="muted">Chưa ghi phần nào cần cập nhật — bấm “Chọn phần cần cập nhật”.</div>`}
         ${l.profile_note ? `<div class="muted">${esc(l.profile_note)}</div>` : ""}
       </div>
       <div class="pt-acts">
-        <button type="button" class="btn biz small" data-ptact="go" data-ptid="${l.id}">Cập nhật ›</button>
+        ${needProfileUpdate(l) ? `<button type="button" class="btn biz small" data-ptact="go" data-ptid="${l.id}">Cập nhật ›</button>` : ""}
+        <button type="button" class="btn small" data-ptact="pick" data-ptid="${l.id}">${needProfileUpdate(l) ? "Chọn lại phần" : "Chọn phần cần cập nhật ›"}</button>
         <button type="button" class="btn small" data-ptact="done" data-ptid="${l.id}">✓ Đã xong</button>
       </div>
     </div>`).join("");
@@ -863,14 +866,21 @@
     $("#save-license-btn").hidden = !canEditStatus;
     $("#delete-license-btn").hidden = !(canEditAll && l);
 
+    // Khung nhắc cập nhật Profile DN: hiện cả khi chưa chọn phần nào, để lỡ
+    // đóng hộp thoại nhắc việc thì vẫn mở lại được chứ không mất hẳn lời nhắc.
     const ptBox = $("#l-profile-todo");
-    ptBox.hidden = !(l && needProfileUpdate(l));
+    ptBox.hidden = !(l && (needProfileUpdate(l) || ptPending(l)));
     if (l && needProfileUpdate(l)) {
       ptBox.innerHTML = `<b>Chưa cập nhật Profile doanh nghiệp.</b> Bấm vào phần cần cập nhật:`
         + `<div class="pt-chips">${ptChips(l)}</div>`
         + (l.profile_note ? `<div class="muted">${esc(l.profile_note)}</div>` : "")
         + `<div class="pt-acts"><button type="button" class="btn biz small" data-pt="go">Mở Profile doanh nghiệp ›</button>`
+        + `<button type="button" class="btn small" data-pt="pick">Chọn lại phần cần cập nhật</button>`
         + `<button type="button" class="btn small" data-pt="done">✓ Đã cập nhật xong</button></div>`;
+    } else if (l && ptPending(l)) {
+      ptBox.innerHTML = `<b>Hồ sơ đã hoàn thành — chưa ghi phần nào cần cập nhật Profile doanh nghiệp.</b>`
+        + `<div class="pt-acts"><button type="button" class="btn biz small" data-pt="pick">Chọn phần cần cập nhật ›</button>`
+        + `<button type="button" class="btn small" data-pt="done">Không cần cập nhật</button></div>`;
     }
     $("#license-history").hidden = !l;
     if (l) {
@@ -914,12 +924,15 @@
     const { error } = await q;
     $("#save-license-btn").disabled = false;
     if (error) { toast(error.message, true); return; }
-    toast(id ? "Đã lưu hồ sơ" : "Đã tiếp nhận hồ sơ");
+    const nowFinal = !!LSTAT_MAP[payload.status]?.final;
+    // Hồ sơ kết thúc sẽ rời khỏi bộ lọc mặc định "Đang xử lý" → nói rõ để khỏi tưởng mất hồ sơ
+    toast(nowFinal && !wasFinal
+      ? "Đã lưu — hồ sơ kết thúc nên không còn trong bộ lọc “Đang xử lý”, chọn “Tất cả” để xem lại"
+      : (id ? "Đã lưu hồ sơ" : "Đã tiếp nhận hồ sơ"));
     $("#license-dialog").close();
     await loadAll();
     // Vừa chuyển sang trạng thái kết thúc → nhắc cập nhật Profile doanh nghiệp
-    const nowFinal = !!LSTAT_MAP[payload.status]?.final;
-    if (nowFinal && !wasFinal && payload.status !== "rejected" && payload.status !== "cancelled") {
+    if (nowFinal && !wasFinal && !["rejected", "withdrawn", "cancelled"].includes(payload.status)) {
       const fresh = state.licenses.find((x) => (id ? +x.id === +id : x.file_number === payload.file_number && x.company_name === payload.company_name));
       if (fresh && !fresh.profile_done_at) openProfileTodo(fresh);
     }
@@ -945,6 +958,9 @@
   const ptList = (l) => [...new Set(String(l.profile_todo || "").split("\n").map((x) => ptNorm(x.trim())).filter(Boolean))]
     .sort((a, b) => ptRank(a) - ptRank(b) || a.localeCompare(b, "vi"));
   const needProfileUpdate = (l) => isLicense(l) && !!l.profile_todo && !l.profile_done_at;
+  // Hồ sơ đã hoàn thành nhưng chưa trả lời "cần cập nhật phần nào" (bỏ qua hộp thoại nhắc việc)
+  const ptPending = (l) => isLicense(l) && !l.profile_todo && !l.profile_done_at
+    && !!LSTAT_MAP[l.status]?.final && !["rejected", "withdrawn", "cancelled"].includes(l.status);
 
   // Danh sách nội dung cần cập nhật, bấm vào mục nào → mở thẳng phần đó trong Profile DN
   const ptChips = (l) => ptList(l).map((x) =>
@@ -1886,6 +1902,7 @@
       if (chip) { $("#license-dialog").close(); gotoCompanyProfile(l, ptPane(chip.dataset.ptgo)); return; }
       const b = e.target.closest("button[data-pt]");
       if (!b) return;
+      if (b.dataset.pt === "pick") { $("#license-dialog").close(); openProfileTodo(l); return; }
       if (b.dataset.pt === "done") { $("#license-dialog").close(); ptMarkDone(l.id); return; }
       $("#license-dialog").close();
       gotoCompanyProfile(l, ptPane(ptList(l)[0]));
@@ -1902,6 +1919,7 @@
       const l = state.licenses.find((x) => +x.id === +b.dataset.ptid);
       if (!l) return;
       if (b.dataset.ptact === "done") ptMarkDone(l.id);
+      else if (b.dataset.ptact === "pick") openProfileTodo(l);
       else gotoCompanyProfile(l, ptPane(ptList(l)[0]));
     });
     $("#l-tax_code").addEventListener("input", () => licenseCompanyLookup(false));
