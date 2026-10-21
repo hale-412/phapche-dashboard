@@ -330,11 +330,11 @@
     const cur = $("#company-tabs .ctab.on")?.dataset.ctab;
     bar.innerHTML = `<div class="pt-bar-head">
         <b>Cập nhật theo hồ sơ ${esc(l.file_number || "#" + l.id)}</b>
-        <span class="muted small">· còn ${items.length} phần — bấm để mở, bấm ✓ khi phần đó đã xong</span>
+        <span class="muted small">· còn ${items.length} phần, xếp theo thứ tự ưu tiên — bấm để mở, bấm ✓ khi phần đó đã xong</span>
         <button type="button" class="btn small" data-ptbar="alldone">✓ Xong tất cả</button>
       </div>
-      <div class="pt-chips">${items.map((x) => `<span class="pt-task${ptPane(x) === cur ? " on" : ""}">
-        <button type="button" class="pt-task-main" data-ptopenpane="${esc(x)}" title="Mở phần này">${ptIcon(x)} ${esc(x)}</button>
+      <div class="pt-chips">${items.map((x, i) => `<span class="pt-task${ptPane(x) === cur ? " on" : ""}">
+        <button type="button" class="pt-task-main" data-ptopenpane="${esc(x)}" title="Mở phần này"><span class="pt-no">${i + 1}</span>${ptIcon(x)} ${esc(x)}</button>
         <button type="button" class="pt-task-tick" data-pttick="${esc(x)}" title="Đã cập nhật xong phần này">✓</button>
       </span>`).join("")}</div>`
       + (l.profile_note ? `<div class="muted small">${esc(l.profile_note)}</div>` : "");
@@ -936,7 +936,14 @@
   const ptItem = (label) => PT_ITEMS.find((x) => x.label === ptNorm(label));
   const ptPane = (label) => ptItem(label)?.pane || "overview";
   const ptIcon = (label) => ptItem(label)?.icon || "•";
-  const ptList = (l) => String(l.profile_todo || "").split("\n").map((x) => ptNorm(x.trim())).filter(Boolean);
+  // Thứ tự ưu tiên = thứ tự khai báo trong window.PROFILE_UPDATE_ITEMS (js/config.js);
+  // muốn đổi ưu tiên thì đổi thứ tự các dòng trong danh mục đó. Mục lạ xếp cuối.
+  const ptRank = (label) => {
+    const i = PT_ITEMS.findIndex((x) => x.label === ptNorm(label));
+    return i < 0 ? 999 : i;
+  };
+  const ptList = (l) => [...new Set(String(l.profile_todo || "").split("\n").map((x) => ptNorm(x.trim())).filter(Boolean))]
+    .sort((a, b) => ptRank(a) - ptRank(b) || a.localeCompare(b, "vi"));
   const needProfileUpdate = (l) => isLicense(l) && !!l.profile_todo && !l.profile_done_at;
 
   // Danh sách nội dung cần cập nhật, bấm vào mục nào → mở thẳng phần đó trong Profile DN
