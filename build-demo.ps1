@@ -12,7 +12,7 @@ $inject = @'
   window.MOCK_USER = +(new URLSearchParams(location.search).get("user") || 1);
   window.APP_CONFIG = Object.assign({}, window.APP_CONFIG, { SUPABASE_URL: "https://local.demo", SUPABASE_ANON_KEY: "local" });
 </script>
-<script src="js/demo-data.js?v=31"></script>
+<script src="js/demo-data.js?v=32"></script>
 '@
 $h = [regex]::Replace($h, '<script src="vendor/supabase-[^"]+"></script>\s*<script src="js/config\.js\?v=\d+"></script>', $inject.Replace('$', '$$'))
 $banner = '<div style="position:fixed;bottom:0;left:12px;background:#fab219;color:#0b0b0b;font-size:12px;font-weight:600;padding:2px 12px;border-radius:8px 8px 0 0;z-index:50">DÙNG THỬ – dữ liệu lưu trên máy này, chưa chia sẻ</div>'

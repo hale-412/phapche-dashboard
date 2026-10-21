@@ -37,7 +37,12 @@
       id: i + 1, file_number: `HS${String(101 + i)}/2026`, company_name: c, tax_code: `01${String(10000000 + i * 7919)}`, procedure: procs[i % 5],
       received_date: d(-20 + i), deadline: d((i % 6) - 3), handler1: uid((i % 13) + 2), handler2: i % 2 ? uid(((i + 4) % 13) + 1) : null,
       status: stats[i], license_number: stats[i] === "issued" ? `${300 + i}/LĐTBXH-GP` : null, issued_date: stats[i] === "issued" ? d(-1) : null,
-      note: stats[i] === "supplement" ? "Thiếu xác nhận ký quỹ ngân hàng" : null, created_by: uid(1), created_at: now(), updated_at: now(),
+      note: stats[i] === "supplement" ? "Thiếu xác nhận ký quỹ ngân hàng" : null,
+      // Hồ sơ đã cấp phép → còn lời nhắc cập nhật Profile doanh nghiệp (xem ở tab Tổng quan)
+      profile_todo: stats[i] === "issued" ? "Thông tin Giấy phép\nNgười đại diện theo pháp luật\nĐịa chỉ" : null,
+      profile_note: stats[i] === "issued" ? "Cấp mới GP, cập nhật lại hồ sơ doanh nghiệp" : null,
+      profile_done_at: null,
+      created_by: uid(1), created_at: now(), updated_at: now(),
     }));
     const utypes = window.UPDATE_TYPES || ["Cập nhật danh sách nhân viên nghiệp vụ"];
     const ustats = ["received", "processing", "supplement", "done", "processing", "done", "received", "rejected", "processing", "done"];
