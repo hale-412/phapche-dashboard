@@ -65,26 +65,30 @@ window.BIZ_TASK_TYPES = [
 // những phần nào trong Profile doanh nghiệp. `pane` khớp với data-pane của tab
 // trong hồ sơ DN, bấm vào thẻ / mục nào sẽ mở thẳng đúng tab đó để cập nhật.
 // `icon` chỉ để hiển thị cho dễ nhìn, `hint` là dòng mô tả ngắn dưới nhãn.
+// THỨ TỰ CÁC DÒNG DƯỚI ĐÂY CHÍNH LÀ THỨ TỰ ƯU TIÊN hiển thị khắp nơi
+// (thẻ ở Tổng quan, chip trong hồ sơ DN, thanh nhắc việc) — đổi ưu tiên thì
+// chỉ cần đổi chỗ các dòng, không phải sửa code.
 window.PROFILE_UPDATE_ITEMS = [
-  { pane: "license",     icon: "📜", label: "Thông tin Giấy phép",          hint: "Số GP, ngày cấp, hiệu lực" },
-  { pane: "adjustments", icon: "🔁", label: "Lịch sử điều chỉnh Giấy phép", hint: "Thêm lần điều chỉnh" },
-  { pane: "name",        icon: "🏢", label: "Tên doanh nghiệp",             hint: "Tên, mã số, GCN ĐKDN" },
-  { pane: "address",     icon: "📍", label: "Địa chỉ",                      hint: "Trụ sở, liên hệ, chi nhánh, địa điểm KD" },
-  { pane: "markets",     icon: "🌏", label: "Thị trường hoạt động",         hint: "Các nước tiếp nhận lao động" },
-  { pane: "capital",     icon: "💰", label: "Vốn điều lệ",                  hint: "Vốn & loại hình doanh nghiệp" },
-  { pane: "deposit",     icon: "🏦", label: "Ký quỹ",                       hint: "Số tiền, ngân hàng, tài khoản" },
+  { pane: "license",     icon: "📜", label: "Thông tin Giấy phép",           hint: "Số GP, ngày cấp, hiệu lực" },
+  { pane: "name",        icon: "🏢", label: "Mã số doanh nghiệp",            hint: "Mã số DN, tên doanh nghiệp, GCN ĐKDN" },
   { pane: "reps",        icon: "👤", label: "Người đại diện theo pháp luật", hint: "Thay đổi / bổ sung người đại diện" },
-  { pane: "staff",       icon: "👥", label: "Nhân viên nghiệp vụ",          hint: "Danh sách nhân viên nghiệp vụ" },
-  { pane: "facilities",  icon: "🏫", label: "Cơ sở đào tạo",                hint: "Cơ sở đào tạo / cơ sở vật chất" },
-  { pane: "violations",  icon: "⚠️", label: "Xử phạt vi phạm hành chính",   hint: "Quyết định xử phạt" },
-  { pane: "inspections", icon: "🔎", label: "Thanh tra, kiểm tra",          hint: "Kết luận thanh tra, kiểm tra" },
+  { pane: "facilities",  icon: "🏫", label: "Cơ sở đào tạo",                 hint: "Cơ sở đào tạo / cơ sở vật chất" },
+  { pane: "adjustments", icon: "🔁", label: "Lịch sử điều chỉnh Giấy phép",  hint: "Thêm lần điều chỉnh" },
+  { pane: "address",     icon: "📍", label: "Địa chỉ",                       hint: "Trụ sở, liên hệ, chi nhánh, địa điểm KD" },
+  { pane: "markets",     icon: "🌏", label: "Thị trường hoạt động",          hint: "Các nước tiếp nhận lao động" },
+  { pane: "capital",     icon: "💰", label: "Vốn điều lệ",                   hint: "Vốn & loại hình doanh nghiệp" },
+  { pane: "deposit",     icon: "🏦", label: "Ký quỹ",                        hint: "Số tiền, ngân hàng, tài khoản" },
+  { pane: "staff",       icon: "👥", label: "Nhân viên nghiệp vụ",           hint: "Danh sách nhân viên nghiệp vụ" },
+  { pane: "violations",  icon: "⚠️", label: "Xử phạt vi phạm hành chính",    hint: "Quyết định xử phạt" },
+  { pane: "inspections", icon: "🔎", label: "Thanh tra, kiểm tra",           hint: "Kết luận thanh tra, kiểm tra" },
 ];
 // Nhãn cũ (trước đây lưu trong licenses.profile_todo) → quy về nhãn mới ở trên,
 // để lời nhắc đã ghi từ trước vẫn khớp đúng phần cần cập nhật.
 window.PROFILE_UPDATE_ALIASES = {
   "Thông tin Giấy phép (số GP, ngày cấp, hiệu lực)": "Thông tin Giấy phép",
   "Lịch sử điều chỉnh Giấy phép (thêm lần điều chỉnh)": "Lịch sử điều chỉnh Giấy phép",
-  "Tên doanh nghiệp / mã số / GCN ĐKDN": "Tên doanh nghiệp",
+  "Tên doanh nghiệp / mã số / GCN ĐKDN": "Mã số doanh nghiệp",
+  "Tên doanh nghiệp": "Mã số doanh nghiệp",
   "Địa chỉ trụ sở, liên hệ, chi nhánh, địa điểm KD": "Địa chỉ",
   "Thị trường hoạt động": "Thị trường hoạt động",
   "Vốn điều lệ & loại hình doanh nghiệp": "Vốn điều lệ",
