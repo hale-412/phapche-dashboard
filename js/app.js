@@ -595,7 +595,9 @@
     const st = $("#f-status").value, h = $("#f-handler").value, due = $("#f-due").value;
     const today = todayISO(), ym = today.slice(0, 7);
     return allItems().filter((t) => {
-      if (st === "open" ? !isOpen(t) : st !== "all" && t.status !== st) return false;
+      if (st === "kind:task") { if (isLicense(t)) return false; }
+      else if (st === "kind:license") { if (!isLicense(t)) return false; }
+      else if (st === "open" ? !isOpen(t) : st !== "all" && t.status !== st) return false;
       if (h && t.handler1 !== h && t.handler2 !== h) return false;
       if (due) {
         const d = daysLeft(t);
@@ -717,9 +719,12 @@
   function fillTaskSelects() {
     const st = TSTAT.map((s) => `<option value="${s.value}">${esc(s.label)}</option>`).join("");
     const sl = LSTAT.map((s) => `<option value="${s.value}">${esc(s.label)}</option>`).join("");
+    // "kind:*" = lọc theo loại bản ghi, lấy hết mọi trạng thái xử lý
     $("#f-status").innerHTML = `<option value="open">Đang mở (chưa hoàn thành)</option>`
-      + `<optgroup label="Văn bản hành chính">${st}</optgroup>`
-      + `<optgroup label="Hồ sơ doanh nghiệp">${sl}</optgroup>`
+      + `<optgroup label="Văn bản hành chính">`
+      + `<option value="kind:task">Tất cả văn bản hành chính</option>${st}</optgroup>`
+      + `<optgroup label="Hồ sơ doanh nghiệp">`
+      + `<option value="kind:license">Tất cả hồ sơ doanh nghiệp</option>${sl}</optgroup>`
       + `<option value="all">Tất cả</option>`;
     $("#t-status").innerHTML = st;
   }
