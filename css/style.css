@@ -491,3 +491,8 @@ label > .was { margin-top: 4px; font-weight: 400; }
 /* Cặp nút thêm mới ở thanh lọc: luôn đứng cạnh nhau, không tách rời khi xuống dòng */
 .btn-pair { display: flex; gap: 8px; flex: none; }
 .btn-pair .btn { white-space: nowrap; }
+/* Xem chữ máy đọc được từ văn bản (để báo lỗi bóc tách) */
+.read-peek { margin-top: 8px; }
+.read-peek pre { margin: 6px 0 0; padding: 8px 10px; max-height: 240px; overflow: auto;
+  background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px;
+  font-family: ui-monospace, Consolas, monospace; font-size: 11.5px; line-height: 1.5; white-space: pre-wrap; }

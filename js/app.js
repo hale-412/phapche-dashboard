@@ -1668,13 +1668,26 @@
         el.classList.add("auto-filled");
         filled.push(LBL[k]);
       });
+      const missed = Object.keys(DOC_FIELDS).filter((k) => k !== "priority" && !f[k]).map((k) => LBL[k]);
+      // Luôn cho xem chữ máy đọc được: ô nào không ra thì nhìn vào đây là biết ngay
+      // văn bản viết kiểu gì, báo lại để chỉnh quy tắc bóc tách.
+      const peek = `<div class="read-peek"><button type="button" class="btn small" id="t-read-peek">Xem chữ máy đọc được ▾</button>`
+        + `<pre id="t-read-text" hidden>${esc(r.text.split("\n").slice(0, 25).join("\n"))}</pre></div>`;
       if (!filled.length) {
         show(`Đã đọc <b>${esc(file.name)}</b> nhưng chưa nhận ra thông tin nào — mời nhập tay.`
-          + (r.source === "pdf" ? ` <button type="button" class="btn small" id="t-read-ocr">Thử đọc lại bằng OCR</button>` : ""), "warn");
+          + (r.source === "pdf" ? ` <button type="button" class="btn small" id="t-read-ocr">Thử đọc lại bằng OCR</button>` : "")
+          + peek, "warn");
       } else {
         show(`✔ Đã đọc <b>${esc(file.name)}</b> ${r.source === "ocr" ? "(nhận dạng chữ từ bản scan)" : "(PDF có sẵn chữ)"}`
-          + ` và điền sẵn: <b>${filled.join(", ")}</b>. <span class="muted">Ô tô vàng là máy đọc — kiểm tra lại trước khi lưu.</span>`, "ok");
+          + ` và điền sẵn: <b>${filled.join(", ")}</b>.`
+          + (missed.length ? ` <span class="muted">Không đọc được: ${missed.join(", ")} — mời nhập tay.</span>` : "")
+          + ` <span class="muted">Ô tô vàng là máy đọc — kiểm tra lại trước khi lưu.</span>` + peek, "ok");
       }
+      $("#t-read-peek")?.addEventListener("click", (e) => {
+        const box2 = $("#t-read-text");
+        box2.hidden = !box2.hidden;
+        e.target.textContent = box2.hidden ? "Xem chữ máy đọc được ▾" : "Ẩn chữ máy đọc được ▴";
+      });
       // Ngày tháng là chỗ máy hay đoán sai nhất → liệt kê sẵn các ngày để bấm một
       // phát là sửa, khỏi gõ tay.
       renderDatePicks(f.dates || []);

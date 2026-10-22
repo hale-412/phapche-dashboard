@@ -203,22 +203,29 @@
   // Nằm ở khối đầu trang, CỘT BÊN TRÁI, ngang hàng với dòng "…, ngày … tháng … năm …"
   // ở cột bên phải. Phải lấy đúng chỗ đó, không thì vớ phải "Công văn số …/…"
   // được viện dẫn trong nội dung.
-  // Ký hiệu có thể lẫn chữ thường: TTr, NĐ, QĐ, BC… nên cho cả a-z vào.
-  const RE_DOCNO = "([0-9]{1,5}\\s*[\\/\\-]\\s*[A-ZĐÀ-Ỹ0-9][A-Za-zĐđÀ-ỹ0-9\\-\\.\\/]{1,30})";
-  const RE_NO_STRICT = new RegExp("S[ốôo]\\s*:\\s*" + RE_DOCNO, "i");        // có dấu hai chấm
-  const RE_NO_HEAD = new RegExp("^S[ốôo]\\s*:?\\s*" + RE_DOCNO, "i");        // OCR mất dấu hai chấm
+  // Ký hiệu có thể lẫn chữ thường (TTr, NĐ, QĐ, BC…) và có dấu cách quanh dấu nối
+  // ("1234/UBND - NC"); bắt xong sẽ bỏ hết dấu cách.
+  const SO = "S[ốôoơ0]";                       // OCR đọc "Số" thành Sô / So / Sơ / S0
+  const KYHIEU = "[A-Za-zĐđÀ-ỹ0-9]+(?:\\s*[-.\\/]\\s*[A-Za-zĐđÀ-ỹ0-9]+)*";
+  const RE_DOCNO = `([0-9]{1,7}\\s*[\\/\\-]\\s*${KYHIEU})`;
+  const RE_NO_STRICT = new RegExp(`${SO}\\s*:\\s*${RE_DOCNO}`, "i");   // có dấu hai chấm
+  const RE_NO_HEAD = new RegExp(`^${SO}\\s*:?\\s*${RE_DOCNO}`, "i");   // OCR mất dấu hai chấm
+  // Giấy mời, thông báo nội bộ… đôi khi chỉ có số, không có ký hiệu: "Số: 07"
+  const RE_NO_PLAIN = new RegExp(`^${SO}\\s*:?\\s*([0-9]{1,7})\\s*$`, "i");
+  const HEAD_LINES = 20;
   const normDocNo = (s) => s.replace(/\s+/g, "").replace(/[.,;]+$/, "");
 
   function findDocNumber(textTabs) {
     // CHỈ xét khối đầu trang, cột bên trái. Tuyệt đối không quét phần nội dung:
     // trong nội dung luôn có số của văn bản khác được viện dẫn ("Công văn số …
     // của Văn phòng Chính phủ"), lấy vào là sai.
-    const head = textTabs.split("\n").slice(0, 14).map(leftCol);
+    const raw = textTabs.split("\n").slice(0, HEAD_LINES);
+    // Ký hiệu có thể bị xuống dòng ("Số: 1234" / "/SNV-PC") → ghép thử với dòng sau
+    const head = raw.map((l, k) => leftCol(l) + (raw[k + 1] && /^\s*[\/\-]/.test(leftCol(raw[k + 1])) ? leftCol(raw[k + 1]) : ""));
     // 1) Ngang hàng với dòng "<Địa danh>, ngày … tháng … năm …" ở cột bên phải
-    const i = textTabs.split("\n").slice(0, 14)
-      .findIndex((l) => l.includes("\t") && /,\s*ngày\s*\d{1,2}\s*(tháng|[\/\-.])/i.test(l));
+    const i = raw.findIndex((l) => l.includes("\t") && /,\s*ngày\s*\d{1,2}\s*(tháng|[\/\-.])/i.test(l));
     if (i >= 0) {
-      const m = head[i].match(RE_NO_STRICT) || head[i].match(RE_NO_HEAD);
+      const m = head[i].match(RE_NO_STRICT) || head[i].match(RE_NO_HEAD) || head[i].match(RE_NO_PLAIN);
       if (m) return normDocNo(m[1]);
     }
     // 2) Dòng "Số: …" ở cột bên trái khối đầu trang
@@ -229,6 +236,11 @@
     // 3) Dòng bắt đầu bằng "Số …" (OCR mất dấu hai chấm)
     for (const l of head) {
       const m = l.match(RE_NO_HEAD);
+      if (m) return normDocNo(m[1]);
+    }
+    // 4) Chỉ có số, không có ký hiệu
+    for (const l of head) {
+      const m = l.match(RE_NO_PLAIN);
       if (m) return normDocNo(m[1]);
     }
     return "";                 // không có ở đầu trang thì để trống, mời nhập tay
