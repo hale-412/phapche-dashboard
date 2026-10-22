@@ -1596,6 +1596,50 @@
       b.classList.toggle("on", ($(b.dataset.dtarget)?.value || "") === b.dataset.dval));
   }
 
+  // Cộng thêm ngày vào một ngày ISO, tính theo giờ địa phương
+  // (khác addDays() ở phần báo cáo: hàm kia nhận và trả về đối tượng Date)
+  function addDaysISO(isoDate, n) {
+    if (!isoDate) return "";
+    const d = new Date(isoDate + "T00:00:00");
+    d.setDate(d.getDate() + n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+
+  // Ba hàng chip chọn nhanh ngày, vẽ lại mỗi lần bấm để gợi ý Ngày đến
+  // luôn bám theo Ngày văn bản đang chọn.
+  function renderDatePicks(dates) {
+    const box = $("#t-read-status");
+    if (!box || box.hidden) return;
+    let wrap = $("#t-date-picks");
+    if (!wrap) { box.insertAdjacentHTML("beforeend", `<div id="t-date-picks"></div>`); wrap = $("#t-date-picks"); }
+    const docDate = $("#t-doc_date").value;
+    if (!dates.length && !docDate) { wrap.innerHTML = ""; return; }
+
+    const chip = (target, val, label, note) =>
+      `<button type="button" class="date-chip" data-dtarget="${target}" data-dval="${val}">${label}${note ? ` <i>${note}</i>` : ""}</button>`;
+    const row = (label, html) => html ? `<div class="date-pick"><span class="muted">${label}</span> ${html}</div>` : "";
+    const found = (target) => dates.map((d) => chip(target, d, fmtDate(d))).join(" ");
+
+    // Ngày đến: văn bản thường tới Phòng sau ngày ban hành 1-2 ngày
+    const seen = new Set();
+    const arrival = [[docDate, "ngày VB"], [addDaysISO(docDate, 1), "+1"], [addDaysISO(docDate, 2), "+2"], [todayISO(), "hôm nay"]]
+      .filter(([v]) => v && !seen.has(v) && seen.add(v))
+      .map(([v, note]) => chip("#t-received_date", v, fmtDate(v), note)).join(" ");
+
+    wrap.innerHTML = row(dates.length > 1 ? "Ngày văn bản:" : "", dates.length > 1 ? found("#t-doc_date") : "")
+      + row("Ngày đến:", arrival)
+      + row("Thời hạn xử lý:", (dates.length ? found("#t-deadline") + " " : "")
+        + chip("#t-deadline", "", "Không có hạn"));
+
+    markDateChips();
+    wrap.querySelectorAll("button[data-dtarget]").forEach((b) => b.addEventListener("click", () => {
+      const el = $(b.dataset.dtarget);
+      el.value = b.dataset.dval;
+      el.classList.toggle("auto-filled", !!b.dataset.dval);
+      renderDatePicks(dates);                 // Ngày VB đổi → gợi ý Ngày đến đổi theo
+    }));
+  }
+
   function bindDocRead() {
     const inp = $("#t-read-file"), drop = $("#t-read-drop");
     if (!inp) return;
@@ -1631,23 +1675,9 @@
         show(`✔ Đã đọc <b>${esc(file.name)}</b> ${r.source === "ocr" ? "(nhận dạng chữ từ bản scan)" : "(PDF có sẵn chữ)"}`
           + ` và điền sẵn: <b>${filled.join(", ")}</b>. <span class="muted">Ô tô vàng là máy đọc — kiểm tra lại trước khi lưu.</span>`, "ok");
       }
-      // Ngày tháng là chỗ máy hay đoán sai nhất → liệt kê mọi ngày tìm được
-      // trong văn bản để bấm một phát là sửa, khỏi gõ tay.
-      if (f.dates?.length > 1) {
-        const chips = (target) => f.dates.map((d) =>
-          `<button type="button" class="date-chip" data-dtarget="${target}" data-dval="${d}">${fmtDate(d)}</button>`).join(" ");
-        box.insertAdjacentHTML("beforeend",
-          `<div class="date-pick"><span class="muted">Ngày văn bản:</span> ${chips("#t-doc_date")}</div>`
-          + `<div class="date-pick"><span class="muted">Thời hạn xử lý:</span> ${chips("#t-deadline")}`
-          + ` <button type="button" class="date-chip" data-dtarget="#t-deadline" data-dval="">Không có hạn</button></div>`);
-        markDateChips();
-        box.querySelectorAll("button[data-dtarget]").forEach((b) => b.addEventListener("click", () => {
-          const el = $(b.dataset.dtarget);
-          el.value = b.dataset.dval;
-          el.classList.toggle("auto-filled", !!b.dataset.dval);
-          markDateChips();
-        }));
-      }
+      // Ngày tháng là chỗ máy hay đoán sai nhất → liệt kê sẵn các ngày để bấm một
+      // phát là sửa, khỏi gõ tay.
+      renderDatePicks(f.dates || []);
       const again = $("#t-read-ocr");
       if (again) again.addEventListener("click", () => readDocFile(file, true));
     } catch (err) {
