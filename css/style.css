@@ -480,3 +480,9 @@ label > .was { margin-top: 4px; font-weight: 400; }
 /* Ô do máy đọc được điền sẵn — nhắc chuyên viên kiểm tra lại */
 .auto-filled { background: color-mix(in srgb, var(--warning) 22%, var(--surface)) !important;
   border-color: color-mix(in srgb, var(--warning) 60%, transparent) !important; }
+/* Chọn nhanh ngày trong các ngày máy tìm thấy ở văn bản */
+.date-pick { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 6px; font-size: 12px; }
+.date-chip { font: inherit; font-size: 12px; padding: 2px 9px; border-radius: 99px; cursor: pointer;
+  border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); }
+.date-chip:hover { border-color: var(--primary); background: var(--surface-2); }
+.date-chip.on { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); font-weight: 600; }

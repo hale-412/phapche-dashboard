@@ -147,10 +147,41 @@
     for (const re of [re1, re2]) {
       let m;
       while ((m = re.exec(text))) {
-        if (validDate(m[1], m[2], m[3])) out.push({ idx: m.index, value: iso(m[1], m[2], m[3]), raw: m[0] });
+        if (validDate(m[1], m[2], m[3])) out.push({ idx: m.index, value: iso(m[1], m[2], m[3]), raw: m[0].trim() });
       }
     }
     return out.sort((a, b) => a.idx - b.idx);
+  }
+
+  // Ngày của văn bản ĐƯỢC VIỆN DẪN ("…Kế hoạch số 45/KH-UBND ngày 02/10/2026…")
+  // chứ không phải ngày ban hành của văn bản đang đọc.
+  const isCited = (text, idx) => /s[ốôo]\s*:?\s*\d[^\s]{0,30}\s*$/i.test(text.slice(Math.max(0, idx - 60), idx));
+
+  // ---------- Ngày ban hành văn bản ----------
+  // Luôn nằm ở khối đầu trang, CỘT BÊN PHẢI, dạng "<Địa danh>, ngày … tháng … năm …".
+  // Xét theo thứ tự chắc chắn giảm dần để tránh vớ phải ngày của văn bản viện dẫn.
+  function findDocDate(textTabs) {
+    const head = textTabs.split("\n").slice(0, 25);
+    const grab = (s) => {
+      const m = s.match(new RegExp(`,\\s*ngày\\s*${MONTH_D}\\s*tháng\\s*${MONTH_D}\\s*năm\\s*(\\d{4})`, "i"))
+        || s.match(new RegExp(`,\\s*ngày\\s*${MONTH_D}\\s*[/\\-.]\\s*${MONTH_D}\\s*[/\\-.]\\s*(\\d{4})`, "i"));
+      return m && validDate(m[1], m[2], m[3]) ? iso(m[1], m[2], m[3]) : "";
+    };
+    // 1) "Địa danh, ngày …" ở cột bên phải khối đầu trang — chắc chắn nhất
+    for (const line of head) {
+      if (!line.includes("\t")) continue;
+      const hit = grab(line.split("\t").slice(1).join(" "));
+      if (hit) return hit;
+    }
+    // 2) "Địa danh, ngày …" ở bất kỳ đâu trong khối đầu trang
+    for (const line of head) {
+      const hit = grab(line);
+      if (hit) return hit;
+    }
+    // 3) Ngày đầu tiên trong khối đầu trang, bỏ qua ngày của văn bản viện dẫn
+    const p = flat(head.join("\n"));
+    const d = findDates(p).find((x) => !isCited(p, x.idx));
+    return d?.value || findDates(flat(textTabs))[0]?.value || "";
   }
 
   // Số văn bản: "Số: 1234/UBND-NC", "Số:1234/SLĐTBXH-PC", "Số 1234/QĐ-UBND"
@@ -175,11 +206,19 @@
       if (SKIP.test(s)) { if (lines.length) break; continue; }
       if (!isUpper(s)) { if (lines.length) break; continue; }
       lines.push(s);
-      if (lines.length >= 3) break;
+      if (lines.length >= 4) break;
     }
-    // "UBND TỈNH X / SỞ NỘI VỤ" → lấy dòng cuối (đơn vị trực tiếp ban hành)
-    return lines.length ? lines[lines.length - 1].replace(/[-–—_\s]+$/, "").trim() : "";
+    if (!lines.length) return "";
+    // "UBND TỈNH X / SỞ NỘI VỤ" → lấy đơn vị trực tiếp ban hành, tức khối cuối cùng
+    // có từ chỉ loại cơ quan. Tên dài bị xuống dòng ("CỤC QUẢN LÝ LAO ĐỘNG NGOÀI" /
+    // "NƯỚC") thì nối các mảnh phía sau lại cho đủ.
+    let i = -1;
+    lines.forEach((s, k) => { if (ORG_KEY.test(s)) i = k; });
+    const take = i < 0 ? lines.slice(-1) : [lines[i], ...lines.slice(i + 1).filter((s) => !ORG_KEY.test(s))];
+    return take.join(" ").replace(/\s{2,}/g, " ").replace(/[-–—_\s]+$/, "").trim();
   }
+  // Từ chỉ loại cơ quan ban hành, dùng để nhận ra đâu là dòng mở đầu tên cơ quan
+  const ORG_KEY = /(BỘ|SỞ|CỤC|ỦY\s*BAN|UBND|HĐND|HỘI\s*ĐỒNG|THANH\s*TRA|PHÒNG|BAN|VIỆN|TRUNG\s*TÂM|VĂN\s*PHÒNG|CÔNG\s*AN|TÒA\s*ÁN|CHI\s*NHÁNH|TỔNG\s*CÔNG\s*TY|CÔNG\s*TY|NGÂN\s*HÀNG|TRƯỜNG|ĐOÀN)\b/i;
 
   // Trích yếu: dòng "V/v ..." (có thể tràn sang dòng sau)
   function findSubject(text) {
@@ -206,14 +245,19 @@
     return "";
   }
 
-  // Thời hạn: "trước ngày 20/3/2026" | "trong thời hạn 10 ngày" | "chậm nhất ngày ..."
+  // Thời hạn: "trước ngày 20/3/2026" | "trước 17 giờ ngày 20/3/2026" |
+  // "chậm nhất là ngày …" | "hạn cuối: …" | "hoàn thành trước …" | "trong thời hạn 10 ngày"
+  const DEADLINE_KEYS = /(?:trước\s+ngày|trước\s+\d{1,2}\s*(?:giờ|g\b|h\b)|chậm\s+nhất|hạn\s+(?:cuối|chót)|thời\s+hạn\s*:|hoàn\s+thành\s+trước|xong\s+trước|gửi\s+(?:về|đến|cho)[^\n]{0,60}?trước|báo\s+cáo[^\n]{0,60}?trước|trả\s+lời[^\n]{0,60}?trước|trước)/gi;
+
   function findDeadline(text, docDate) {
-    // Giữ lại chữ "ngày" trong phần bắt được, vì findDates() cần nó cho dạng
-    // "ngày 30 tháng 10 năm 2026"; dạng 30/10/2026 thì không cần.
-    const m = text.match(/(?:trước|chậm\s+nhất(?:\s+là)?(?:\s+vào)?|hạn\s+(?:cuối|chót)\s*:?|trước\s+khi)\s*(ngày\s*[^\n.;]{4,45}|\d{1,2}\s*[\/\-.]\s*\d{1,2}\s*[\/\-.]\s*\d{4})/i);
-    if (m) {
-      const d = findDates(m[1]);
-      if (d.length) return d[0].value;
+    // Từ mỗi từ khóa chỉ hạn, quét tiếp ~90 ký tự để bắt ngày — không bắt buộc
+    // ngày phải nằm sát từ khóa ("trước 17 giờ 00 ngày 30/10/2026").
+    DEADLINE_KEYS.lastIndex = 0;
+    let k;
+    while ((k = DEADLINE_KEYS.exec(text))) {
+      const d = findDates(text.slice(k.index, k.index + k[0].length + 90))[0];
+      // Hạn xử lý không thể trước ngày ban hành → loại ngày của văn bản viện dẫn
+      if (d && (!docDate || d.value >= docDate)) return d.value;
     }
     // "trong thời hạn N ngày": mốc tính là ngày nhận nếu văn bản ghi "kể từ ngày nhận",
     // còn lại tính từ ngày ban hành văn bản.
@@ -234,15 +278,17 @@
     const t = clean(text);                    // còn TAB: dùng để tách cột khi tìm cơ quan gửi
     const p = flat(t);                        // bản phẳng: dùng cho số VB, ngày, trích yếu, thời hạn
     const doc_number = findDocNumber(p);
-    // Ngày văn bản: ngày đầu tiên xuất hiện ở phần đầu (khối "…, ngày … tháng … năm …")
-    const dates = findDates(p.split("\n").slice(0, 20).join("\n"));
-    const doc_date = dates[0]?.value || findDates(p)[0]?.value || "";
+    const doc_date = findDocDate(t);
+    const deadline = findDeadline(p, doc_date);
+    // Mọi ngày tìm thấy trong văn bản, để người dùng bấm chọn lại nếu máy đoán sai
+    const seen = new Set();
+    const dates = findDates(p).map((d) => d.value).filter((v) => !seen.has(v) && seen.add(v)).sort();
     return {
-      doc_number, doc_date,
+      doc_number, doc_date, deadline,
       sender: findSender(t),
       content: findSubject(p),
-      deadline: findDeadline(p, doc_date),
       priority: findPriority(p),
+      dates,
     };
   }
 

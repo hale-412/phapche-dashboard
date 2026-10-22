@@ -1590,6 +1590,12 @@
     $$("#task-dialog .auto-filled").forEach((el) => el.classList.remove("auto-filled"));
   }
 
+  // Làm nổi chip đang khớp với giá trị trong ô ngày
+  function markDateChips() {
+    $$("#t-read-status button[data-dtarget]").forEach((b) =>
+      b.classList.toggle("on", ($(b.dataset.dtarget)?.value || "") === b.dataset.dval));
+  }
+
   function bindDocRead() {
     const inp = $("#t-read-file"), drop = $("#t-read-drop");
     if (!inp) return;
@@ -1624,6 +1630,23 @@
       } else {
         show(`✔ Đã đọc <b>${esc(file.name)}</b> ${r.source === "ocr" ? "(nhận dạng chữ từ bản scan)" : "(PDF có sẵn chữ)"}`
           + ` và điền sẵn: <b>${filled.join(", ")}</b>. <span class="muted">Ô tô vàng là máy đọc — kiểm tra lại trước khi lưu.</span>`, "ok");
+      }
+      // Ngày tháng là chỗ máy hay đoán sai nhất → liệt kê mọi ngày tìm được
+      // trong văn bản để bấm một phát là sửa, khỏi gõ tay.
+      if (f.dates?.length > 1) {
+        const chips = (target) => f.dates.map((d) =>
+          `<button type="button" class="date-chip" data-dtarget="${target}" data-dval="${d}">${fmtDate(d)}</button>`).join(" ");
+        box.insertAdjacentHTML("beforeend",
+          `<div class="date-pick"><span class="muted">Ngày văn bản:</span> ${chips("#t-doc_date")}</div>`
+          + `<div class="date-pick"><span class="muted">Thời hạn xử lý:</span> ${chips("#t-deadline")}`
+          + ` <button type="button" class="date-chip" data-dtarget="#t-deadline" data-dval="">Không có hạn</button></div>`);
+        markDateChips();
+        box.querySelectorAll("button[data-dtarget]").forEach((b) => b.addEventListener("click", () => {
+          const el = $(b.dataset.dtarget);
+          el.value = b.dataset.dval;
+          el.classList.toggle("auto-filled", !!b.dataset.dval);
+          markDateChips();
+        }));
       }
       const again = $("#t-read-ocr");
       if (again) again.addEventListener("click", () => readDocFile(file, true));
