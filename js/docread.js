@@ -205,32 +205,33 @@
   // được viện dẫn trong nội dung.
   // Ký hiệu có thể lẫn chữ thường: TTr, NĐ, QĐ, BC… nên cho cả a-z vào.
   const RE_DOCNO = "([0-9]{1,5}\\s*[\\/\\-]\\s*[A-ZĐÀ-Ỹ0-9][A-Za-zĐđÀ-ỹ0-9\\-\\.\\/]{1,30})";
-  const RE_NO_STRICT = new RegExp("S[ốôo]\\s*:\\s*" + RE_DOCNO);      // bắt buộc có dấu hai chấm
-  const RE_NO_LOOSE = new RegExp("S[ốôo]\\s*:?\\s*" + RE_DOCNO, "i"); // OCR mất dấu hai chấm
+  const RE_NO_STRICT = new RegExp("S[ốôo]\\s*:\\s*" + RE_DOCNO, "i");        // có dấu hai chấm
+  const RE_NO_HEAD = new RegExp("^S[ốôo]\\s*:?\\s*" + RE_DOCNO, "i");        // OCR mất dấu hai chấm
   const normDocNo = (s) => s.replace(/\s+/g, "").replace(/[.,;]+$/, "");
 
   function findDocNumber(textTabs) {
-    const head = textTabs.split("\n").slice(0, 25);
-    // 1) Cùng dòng với "Địa danh, ngày …" → lấy cột bên trái của chính dòng đó
-    const dateLine = head.find((l) => /,\s*ngày\s*\d{1,2}\s*(tháng|[\/\-.])/i.test(l) && l.includes("\t"));
-    if (dateLine) {
-      const left = leftCol(dateLine);
-      const m = left.match(RE_NO_STRICT) || left.match(RE_NO_LOOSE);
+    // CHỈ xét khối đầu trang, cột bên trái. Tuyệt đối không quét phần nội dung:
+    // trong nội dung luôn có số của văn bản khác được viện dẫn ("Công văn số …
+    // của Văn phòng Chính phủ"), lấy vào là sai.
+    const head = textTabs.split("\n").slice(0, 14).map(leftCol);
+    // 1) Ngang hàng với dòng "<Địa danh>, ngày … tháng … năm …" ở cột bên phải
+    const i = textTabs.split("\n").slice(0, 14)
+      .findIndex((l) => l.includes("\t") && /,\s*ngày\s*\d{1,2}\s*(tháng|[\/\-.])/i.test(l));
+    if (i >= 0) {
+      const m = head[i].match(RE_NO_STRICT) || head[i].match(RE_NO_HEAD);
       if (m) return normDocNo(m[1]);
     }
     // 2) Dòng "Số: …" ở cột bên trái khối đầu trang
     for (const l of head) {
-      const m = leftCol(l).match(RE_NO_STRICT);
-      if (m) return normDocNo(m[1]);
-    }
-    // 3) Dòng "Số: …" ở bất kỳ đâu trong khối đầu trang
-    for (const l of head) {
       const m = l.match(RE_NO_STRICT);
       if (m) return normDocNo(m[1]);
     }
-    // 4) Cuối cùng mới quét toàn văn, cho phép thiếu dấu hai chấm
-    const m = flat(textTabs).match(RE_NO_LOOSE);
-    return m ? normDocNo(m[1]) : "";
+    // 3) Dòng bắt đầu bằng "Số …" (OCR mất dấu hai chấm)
+    for (const l of head) {
+      const m = l.match(RE_NO_HEAD);
+      if (m) return normDocNo(m[1]);
+    }
+    return "";                 // không có ở đầu trang thì để trống, mời nhập tay
   }
 
   // Cơ quan gửi: khối chữ IN HOA ở góc trên bên trái, trước dòng "Số:"
@@ -238,6 +239,8 @@
     const head = text.split("\n").slice(0, 14);
     // Dòng kẻ ngang / dòng trống ở cột trái: bỏ qua, KHÔNG coi là hết khối tên cơ quan
     const SEP = /^[-–—_=─-╿.\s]*$/;
+    // Hết khối tên cơ quan: Quốc hiệu, dòng "Số:", hoặc đã sang tên loại văn bản
+    const DOC_TITLE = /^(GIẤY|QUYẾT\s*ĐỊNH|THÔNG\s*BÁO|THÔNG\s*TƯ|BÁO\s*CÁO|KẾ\s*HOẠCH|CÔNG\s*VĂN|TỜ\s*TRÌNH|BIÊN\s*BẢN|CHỈ\s*THỊ|NGHỊ\s*QUYẾT|NGHỊ\s*ĐỊNH|QUY\s*ĐỊNH|QUY\s*CHẾ|HƯỚNG\s*DẪN|ĐỀ\s*ÁN|PHƯƠNG\s*ÁN|KẾT\s*LUẬN|LỆNH|V\/v)(\s|$)/i;
     const STOP = /CỘNG\s*HÒA|ĐỘC\s*LẬP|TỰ\s*DO|HẠNH\s*PHÚC|^S[ốôo]\s*:/i;
     // Chỉ cần 2 chữ cái: tên cơ quan dài bị xuống dòng để lại mảnh rất ngắn ("HÓA", "NƯỚC")
     const isUpper = (s) => {
@@ -248,7 +251,7 @@
     for (const raw of head) {
       const s = leftCol(raw);                            // chỉ lấy cột bên trái
       if (SEP.test(s)) continue;
-      if (STOP.test(s)) { if (lines.length) break; continue; }
+      if (STOP.test(s) || DOC_TITLE.test(s)) { if (lines.length) break; continue; }
       if (!isUpper(s)) { if (lines.length) break; continue; }
       lines.push(s);
       if (lines.length >= 4) break;
