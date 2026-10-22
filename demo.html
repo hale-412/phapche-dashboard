@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>[Dùng thử] Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=35">
+<link rel="stylesheet" href="css/style.css?v=36">
 </head>
 <body>
 
@@ -138,8 +138,11 @@
         <div class="spacer"></div>
         <button class="btn ghost" id="export-btn">⬇ Xuất Excel (CSV)</button>
         <button class="btn ghost lead-only" id="import-tasks-btn">⬆ Nhập từ Excel</button>
-        <button class="btn biz lead-only" id="add-biz-btn" title="Hồ sơ doanh nghiệp được nhập ở tab Hồ sơ doanh nghiệp">+ Hồ sơ DN</button>
-        <button class="btn primary lead-only" id="add-task-btn">+ Văn bản hành chính</button>
+        <!-- Hai nút thêm mới luôn đứng cạnh nhau, hẹp quá thì xuống dòng cùng nhau -->
+        <div class="btn-pair lead-only">
+          <button class="btn biz" id="add-biz-btn" title="Hồ sơ doanh nghiệp được nhập ở tab Hồ sơ doanh nghiệp">+ Hồ sơ DN</button>
+          <button class="btn primary" id="add-task-btn">+ Văn bản hành chính</button>
+        </div>
       </div>
       <div class="card table-wrap">
         <table class="tasks-table" id="tasks-table">

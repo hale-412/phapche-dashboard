@@ -488,3 +488,6 @@ label > .was { margin-top: 4px; font-weight: 400; }
 .date-chip.on { background: var(--primary); border-color: var(--primary); color: var(--primary-ink); font-weight: 600; }
 .date-chip i { font-style: normal; opacity: .6; font-size: 11px; }
 .date-chip.on i { opacity: .85; }
+/* Cặp nút thêm mới ở thanh lọc: luôn đứng cạnh nhau, không tách rời khi xuống dòng */
+.btn-pair { display: flex; gap: 8px; flex: none; }
+.btn-pair .btn { white-space: nowrap; }
