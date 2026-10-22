@@ -266,6 +266,21 @@
     </div>
     <div class="modal-body">
       <input type="hidden" id="t-id">
+
+      <!-- Tải văn bản lên để phần mềm tự đọc và điền sẵn các ô bên dưới.
+           File chỉ được đọc trên máy này, KHÔNG tải lên máy chủ và không lưu lại. -->
+      <div id="t-read-box" class="read-box lead-only">
+        <label class="read-drop" id="t-read-drop">
+          <input type="file" id="t-read-file" accept=".pdf,.png,.jpg,.jpeg,.webp" hidden>
+          <span class="read-ico">📄</span>
+          <span class="read-txt"><b>Tải văn bản lên để tự điền</b>
+            <small>Kéo thả hoặc bấm chọn file PDF / ảnh · máy tự đọc Số VB, Ngày VB, Cơ quan gửi, Trích yếu, Thời hạn</small>
+            <small class="muted">File chỉ đọc trên máy bạn, không tải lên máy chủ, không lưu lại.</small>
+          </span>
+        </label>
+        <div id="t-read-status" class="read-status" hidden></div>
+      </div>
+
       <div class="form-grid">
         <label>Loại việc
           <select id="t-category" class="lead-field">
@@ -980,7 +995,8 @@
 
 <script src="vendor/supabase-2.117.1.min.js"></script>
 <script src="js/config.js?v=32"></script>
-<script src="js/app.js?v=36"></script>
+<script src="js/docread.js?v=2"></script>
+<script src="js/app.js?v=38"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>

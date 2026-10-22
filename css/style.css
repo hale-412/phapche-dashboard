@@ -458,3 +458,25 @@ label > .was { margin-top: 4px; font-weight: 400; }
 .rp-table tr.rp-grp th { border-bottom: 1px solid var(--line-2); font-size: 11px; text-transform: uppercase; letter-spacing: .02em; }
 .rp-table tr.rp-grp th[colspan] { text-align: center; }
 .rp-det-grp { font-size: 11px; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); margin: 6px 0 2px; }
+
+/* ============ Tải văn bản lên để tự điền (js/docread.js) ============ */
+.read-box { margin-bottom: 12px; }
+.read-drop { display: flex; align-items: center; gap: 12px; padding: 12px 14px; cursor: pointer;
+  border: 1.5px dashed var(--line-2); border-radius: 10px; background: var(--surface-2);
+  flex-direction: row; transition: .12s; }
+.read-drop:hover, .read-drop.over { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
+.read-ico { font-size: 26px; flex: none; }
+.read-txt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.read-txt b { font-size: 13px; color: var(--ink); }
+.read-txt small { font-size: 11px; color: var(--ink-2); }
+.read-status { margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 12.5px;
+  background: var(--surface-2); color: var(--ink-2); }
+.read-status.ok { background: color-mix(in srgb, var(--good) 14%, transparent); color: var(--ink); }
+.read-status.warn { background: color-mix(in srgb, var(--warning) 18%, transparent); color: var(--ink); }
+.read-status.bad { background: color-mix(in srgb, var(--critical) 14%, transparent); color: var(--critical-ink); }
+.spin { display: inline-block; width: 11px; height: 11px; margin-right: 5px; vertical-align: -1px;
+  border: 2px solid var(--line-2); border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* Ô do máy đọc được điền sẵn — nhắc chuyên viên kiểm tra lại */
+.auto-filled { background: color-mix(in srgb, var(--warning) 22%, var(--surface)) !important;
+  border-color: color-mix(in srgb, var(--warning) 60%, transparent) !important; }

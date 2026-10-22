@@ -1572,9 +1572,70 @@
   }
 
   // ---------- Modal văn bản ----------
+  // ---------------------------------------------------------------
+  // Tải văn bản lên → js/docread.js đọc rồi điền sẵn các ô.
+  // Ô nào máy điền sẽ được tô vàng để chuyên viên biết mà kiểm tra lại.
+  // File chỉ đọc trong trình duyệt, không gửi lên máy chủ, không lưu lại.
+  // ---------------------------------------------------------------
+  const DOC_FIELDS = { doc_number: "#t-doc_number", doc_date: "#t-doc_date", sender: "#t-sender", content: "#t-content", deadline: "#t-deadline", priority: "#t-priority" };
+  const LBL = { doc_number: "Số văn bản", doc_date: "Ngày văn bản", sender: "Cơ quan gửi", content: "Trích yếu", deadline: "Thời hạn", priority: "Mức độ" };
+
+  function resetDocRead(show) {
+    const box = $("#t-read-box");
+    if (!box) return;
+    box.hidden = !show || !isLead();
+    $("#t-read-file").value = "";
+    $("#t-read-status").hidden = true;
+    $("#t-read-status").innerHTML = "";
+    $$("#task-dialog .auto-filled").forEach((el) => el.classList.remove("auto-filled"));
+  }
+
+  function bindDocRead() {
+    const inp = $("#t-read-file"), drop = $("#t-read-drop");
+    if (!inp) return;
+    inp.addEventListener("change", () => { if (inp.files[0]) readDocFile(inp.files[0]); });
+    ["dragover", "dragenter"].forEach((e) => drop.addEventListener(e, (ev) => { ev.preventDefault(); drop.classList.add("over"); }));
+    ["dragleave", "drop"].forEach((e) => drop.addEventListener(e, () => drop.classList.remove("over")));
+    drop.addEventListener("drop", (ev) => { ev.preventDefault(); const f = ev.dataTransfer?.files?.[0]; if (f) readDocFile(f); });
+  }
+
+  async function readDocFile(file, forceOcr) {
+    const box = $("#t-read-status");
+    const show = (html, cls = "") => { box.hidden = false; box.className = "read-status " + cls; box.innerHTML = html; };
+    if (!window.DocRead) { show("Thiếu js/docread.js — tải lại trang bằng Ctrl+F5.", "bad"); return; }
+    if (file.size > 25 * 1024 * 1024) { show("File lớn hơn 25 MB, hãy tách bớt trang rồi thử lại.", "bad"); return; }
+    show(`<span class="spin"></span> Đang mở <b>${esc(file.name)}</b>…`);
+    try {
+      const r = await window.DocRead.read(file, (msg) => show(`<span class="spin"></span> ${esc(msg)}`), { forceOcr });
+      const f = r.fields;
+      const filled = [];
+      Object.entries(DOC_FIELDS).forEach(([k, sel]) => {
+        const el = $(sel);
+        if (!el || !f[k]) return;
+        if (k === "priority" && f[k] === "normal") return;      // mặc định sẵn rồi, không tính là đọc được
+        if (el.value && el.value !== "normal") return;          // không ghi đè thứ người dùng đã gõ
+        el.value = f[k];
+        el.classList.add("auto-filled");
+        filled.push(LBL[k]);
+      });
+      if (!filled.length) {
+        show(`Đã đọc <b>${esc(file.name)}</b> nhưng chưa nhận ra thông tin nào — mời nhập tay.`
+          + (r.source === "pdf" ? ` <button type="button" class="btn small" id="t-read-ocr">Thử đọc lại bằng OCR</button>` : ""), "warn");
+      } else {
+        show(`✔ Đã đọc <b>${esc(file.name)}</b> ${r.source === "ocr" ? "(nhận dạng chữ từ bản scan)" : "(PDF có sẵn chữ)"}`
+          + ` và điền sẵn: <b>${filled.join(", ")}</b>. <span class="muted">Ô tô vàng là máy đọc — kiểm tra lại trước khi lưu.</span>`, "ok");
+      }
+      const again = $("#t-read-ocr");
+      if (again) again.addEventListener("click", () => readDocFile(file, true));
+    } catch (err) {
+      show("Không đọc được file: " + esc(err.message || String(err)), "bad");
+    }
+  }
+
   async function openTask(id) {
     const t = id ? state.tasks.find((x) => x.id === id) : null;
     const dlg = $("#task-dialog");
+    resetDocRead(!t);            // ô "Tải văn bản lên để tự điền" chỉ dùng khi thêm mới
     $("#task-dialog-title").textContent = t ? `Văn bản ${t.doc_number || "#" + t.id}` : "Thêm văn bản / công việc";
     $("#t-id").value = t?.id || "";
     $("#t-doc_number").value = t?.doc_number || "";
@@ -1975,6 +2036,7 @@
     $("#t-update_item").innerHTML = `<option value="">— Chọn thông tin —</option>`
       + UITEMS.map((x) => `<option>${esc(x)}</option>`).join("");
     $("#t-progress").addEventListener("input", (e) => ($("#t-progress-val").textContent = e.target.value + "%"));
+    bindDocRead();
     $("#swap-btn").addEventListener("click", () => {
       const a = $("#t-handler1"), b = $("#t-handler2");
       [a.value, b.value] = [b.value, a.value];
