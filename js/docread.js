@@ -215,10 +215,72 @@
     let i = -1;
     lines.forEach((s, k) => { if (ORG_KEY.test(s)) i = k; });
     const take = i < 0 ? lines.slice(-1) : [lines[i], ...lines.slice(i + 1).filter((s) => !ORG_KEY.test(s))];
-    return take.join(" ").replace(/\s{2,}/g, " ").replace(/[-–—_\s]+$/, "").trim();
+    return orgCase(take.join(" ").replace(/\s{2,}/g, " ").replace(/[-–—_\s]+$/, "").trim());
   }
   // Từ chỉ loại cơ quan ban hành, dùng để nhận ra đâu là dòng mở đầu tên cơ quan
   const ORG_KEY = /(BỘ|SỞ|CỤC|ỦY\s*BAN|UBND|HĐND|HỘI\s*ĐỒNG|THANH\s*TRA|PHÒNG|BAN|VIỆN|TRUNG\s*TÂM|VĂN\s*PHÒNG|CÔNG\s*AN|TÒA\s*ÁN|CHI\s*NHÁNH|TỔNG\s*CÔNG\s*TY|CÔNG\s*TY|NGÂN\s*HÀNG|TRƯỜNG|ĐOÀN)\b/i;
+
+  // ---------------------------------------------------------------
+  //  Viết hoa tên cơ quan theo thể thức hành chính (Nghị định 30/2020):
+  //  viết hoa chữ cái đầu của từ chỉ loại hình cơ quan và của cụm từ chỉ
+  //  chức năng / lĩnh vực, phần còn lại viết thường.
+  //    VỤ PHÁP CHẾ                      → Vụ Pháp chế
+  //    VĂN PHÒNG BỘ                     → Văn phòng Bộ
+  //    SỞ NỘI VỤ                        → Sở Nội vụ
+  //    CỤC QUẢN LÝ LAO ĐỘNG NGOÀI NƯỚC  → Cục Quản lý lao động ngoài nước
+  //    BỘ NỘI VỤ - THANH TRA BỘ         → Bộ Nội vụ - Thanh tra Bộ
+  //    ỦY BAN NHÂN DÂN TỈNH THANH HÓA   → Ủy ban nhân dân tỉnh Thanh Hóa
+  //  Muốn thêm / bớt loại hình cơ quan thì sửa ORG_TYPES bên dưới.
+  // ---------------------------------------------------------------
+  const ORG_TYPES = [
+    "ủy ban nhân dân", "uỷ ban nhân dân", "hội đồng nhân dân",
+    "viện kiểm sát nhân dân", "tòa án nhân dân", "toà án nhân dân",
+    "bảo hiểm xã hội", "kho bạc nhà nước", "tổng công ty", "tổng cục", "chi cục",
+    "văn phòng", "thanh tra", "trung tâm", "chi nhánh", "học viện", "ngân hàng",
+    "ủy ban", "uỷ ban", "công an", "công ty", "trường", "viện", "phòng", "ban",
+    "cục", "vụ", "sở", "bộ", "đoàn",
+  ].sort((a, b) => b.length - a.length);
+  const ORG_UNITS = ["thành phố", "thị trấn", "thị xã", "tỉnh", "huyện", "quận", "phường", "xã"]
+    .sort((a, b) => b.length - a.length);
+  const ORG_LOWER = new Set(["và", "của", "thuộc", "trực", "về", "các", "cho", "với", "theo", "trong", "ngoài"]);
+  // Chỉ những chữ viết tắt thật sự mới giữ nguyên — không thể dựa vào "viết hoa hết"
+  // vì cả tên cơ quan cũng viết hoa hết (THANH TRA, TRUNG TÂM, CHI CỤC…).
+  // Không đưa "TƯ" (Trung ương) vào đây: trùng với từ thường "tư" trong "Tư pháp"
+  const ORG_ACRONYM = /^(UBND|HĐND|BHXH|TAND|VKSND|BQL|BCĐ|CSGT|PCCC|VP|VPUB|TW|KH&ĐT|NN&PTNT|LĐTBXH)$/;
+  // Giữ nguyên số La Mã / số thứ tự / chữ cái đơn: "khu vực I", "Vùng 3", "Phòng A"
+  const keepAsIs = (w) => ORG_ACRONYM.test(w) || /^[IVX]+$/.test(w) || /^\d+[A-ZĐ]?$/.test(w) || /^[A-ZĐ]$/.test(w);
+  // "xã hội", "xã viên" không phải đơn vị hành chính cấp xã
+  const NOT_UNIT = /^(xã\s+hội|xã\s+viên)\b/;
+
+  const capWord = (w) => (w ? w[0].toLocaleUpperCase("vi") + w.slice(1) : w);
+  const capSegment = (seg) => {
+    const s = seg.trim();
+    if (!s) return s;
+    const unit = NOT_UNIT.test(s) ? null : ORG_UNITS.find((u) => s === u || s.startsWith(u + " "));
+    if (unit) {                                   // "tỉnh Thanh Hóa": tên địa danh viết hoa từng chữ
+      const after = s.slice(unit.length).trim();
+      return unit + (after ? " " + after.split(/\s+/).map((w) => (ORG_LOWER.has(w) ? w : capWord(w))).join(" ") : "");
+    }
+    const w = s.split(/\s+/);
+    return [capWord(w[0]), ...w.slice(1)].join(" ");
+  };
+  // Mỗi vế ngăn bởi dấu gạch nối hoặc chữ "và" là một lĩnh vực riêng → viết hoa chữ đầu
+  const capPhrase = (s) => s.split(/(\s*[-–—]\s*|\s+và\s+)/)
+    .map((p, i) => (i % 2 ? p : capSegment(p))).join("");
+
+  function orgCase(raw) {
+    let s = String(raw || "").replace(/\s+/g, " ").trim();
+    if (!s) return "";
+    let prefix = "";
+    let tok = s.split(" ");
+    if (tok.length > 1 && ORG_ACRONYM.test(tok[0])) { prefix = tok[0] + " "; tok = tok.slice(1); }
+    // Hạ chữ thường trước, trừ các từ cần giữ nguyên
+    const low = tok.map((w) => (keepAsIs(w) ? w : w.toLocaleLowerCase("vi"))).join(" ");
+    const type = ORG_TYPES.find((t) => low === t || low.startsWith(t + " "));
+    const head = type ? capWord(type) : "";
+    const rest = type ? low.slice(type.length).trim() : low;
+    return (prefix + [head, rest ? capPhrase(rest) : ""].filter(Boolean).join(" ")).trim();
+  }
 
   // Trích yếu: dòng "V/v ..." (có thể tràn sang dòng sau)
   function findSubject(text) {
@@ -315,5 +377,5 @@
     return { text: ocr, source: "ocr", fields: parse(ocr) };
   }
 
-  window.DocRead = { read, parse, clean };
+  window.DocRead = { read, parse, clean, orgCase };
 })();
