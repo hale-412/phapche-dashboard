@@ -71,21 +71,36 @@
         const key = [...lines.keys()].find((k) => Math.abs(k - y) <= 3);
         const k = key === undefined ? y : key;
         if (!lines.has(k)) lines.set(k, []);
-        lines.get(k).push({ x: it.transform[4], w: it.width || 0, s: it.str });
+        // h ≈ cỡ chữ, dùng để biết khoảng trắng nào là dấu cách thật
+        lines.get(k).push({ x: it.transform[4], w: it.width || 0, s: it.str, h: Math.abs(it.transform[0]) || it.height || 10 });
       });
-      text += [...lines.entries()].sort((a, b) => b[0] - a[0])
-        .map(([, parts]) => {
-          parts.sort((a, b) => a.x - b.x);
-          let s = "", end = null;
-          parts.forEach((p) => {
-            // Khoảng trắng rộng giữa hai mẩu chữ = ranh giới cột → đánh dấu bằng TAB
-            if (end !== null) s += p.x - end > 24 ? "\t" : (/\s$/.test(s) ? "" : " ");
-            s += p.s;
-            end = p.x + p.w;
-          });
-          return s.replace(/ {2,}/g, " ").trim();
-        })
-        .filter(Boolean).join("\n") + "\n";
+      const lineText = (parts) => {
+        parts.sort((a, b) => a.x - b.x);
+        let s = "", end = null;
+        parts.forEach((p) => {
+          if (end !== null) {
+            const gap = p.x - end;
+            // Khoảng trắng rộng = ranh giới hai cột của công văn → đánh dấu TAB.
+            if (gap > Math.max(18, p.h * 1.6)) s += "\t";
+            // Hẹp hơn một dấu cách thì KHÔNG chèn gì: pdf.js cắt chữ thành
+            // nhiều mẩu (in đậm, đổi font, kerning), chèn bừa sẽ ra "phá p chế".
+            else if (gap > p.h * 0.18 && !/[\s\t]$/.test(s) && !/^\s/.test(p.s)) s += " ";
+          }
+          s += p.s;
+          end = p.x + p.w;
+        });
+        return s.replace(/ {2,}/g, " ").trim();
+      };
+      // Cách dòng thưa hơn bình thường = sang đoạn mới → chèn dòng trống, để
+      // trích yếu không bị nối liền với đoạn nội dung bên dưới.
+      const rows = [...lines.entries()].sort((a, b) => b[0] - a[0]).filter(([, p]) => lineText(p));
+      const steps = rows.slice(1).map(([y], n) => rows[n][0] - y).sort((a, b) => a - b);
+      const lineGap = steps.length ? steps[Math.floor(steps.length / 2)] : 14;
+      rows.forEach(([y, parts], n) => {
+        if (n) text += rows[n - 1][0] - y > lineGap * 1.6 ? "\n\n" : "\n";
+        text += lineText(parts);
+      });
+      text += "\n";
     }
     return { text: clean(text), pages: pdf.numPages, doc: pdf };
   }
@@ -184,26 +199,56 @@
     return d?.value || findDates(flat(textTabs))[0]?.value || "";
   }
 
-  // Số văn bản: "Số: 1234/UBND-NC", "Số:1234/SLĐTBXH-PC", "Số 1234/QĐ-UBND"
-  function findDocNumber(text) {
-    // Ký hiệu có thể lẫn chữ thường: TTr, NĐ, QĐ, BC… nên cho cả a-z vào
-    const m = text.match(/S[ốôo]\s*:?\s*([0-9]{1,5}\s*[\/\-]\s*[A-ZĐÀ-Ỹ0-9][A-Za-zĐđÀ-ỹ0-9\-\.\/]{1,30})/);
-    if (!m) return "";
-    return m[1].replace(/\s+/g, "").replace(/[.,;]+$/, "");
+  // ---------- Số văn bản ----------
+  // Nằm ở khối đầu trang, CỘT BÊN TRÁI, ngang hàng với dòng "…, ngày … tháng … năm …"
+  // ở cột bên phải. Phải lấy đúng chỗ đó, không thì vớ phải "Công văn số …/…"
+  // được viện dẫn trong nội dung.
+  // Ký hiệu có thể lẫn chữ thường: TTr, NĐ, QĐ, BC… nên cho cả a-z vào.
+  const RE_DOCNO = "([0-9]{1,5}\\s*[\\/\\-]\\s*[A-ZĐÀ-Ỹ0-9][A-Za-zĐđÀ-ỹ0-9\\-\\.\\/]{1,30})";
+  const RE_NO_STRICT = new RegExp("S[ốôo]\\s*:\\s*" + RE_DOCNO);      // bắt buộc có dấu hai chấm
+  const RE_NO_LOOSE = new RegExp("S[ốôo]\\s*:?\\s*" + RE_DOCNO, "i"); // OCR mất dấu hai chấm
+  const normDocNo = (s) => s.replace(/\s+/g, "").replace(/[.,;]+$/, "");
+
+  function findDocNumber(textTabs) {
+    const head = textTabs.split("\n").slice(0, 25);
+    // 1) Cùng dòng với "Địa danh, ngày …" → lấy cột bên trái của chính dòng đó
+    const dateLine = head.find((l) => /,\s*ngày\s*\d{1,2}\s*(tháng|[\/\-.])/i.test(l) && l.includes("\t"));
+    if (dateLine) {
+      const left = leftCol(dateLine);
+      const m = left.match(RE_NO_STRICT) || left.match(RE_NO_LOOSE);
+      if (m) return normDocNo(m[1]);
+    }
+    // 2) Dòng "Số: …" ở cột bên trái khối đầu trang
+    for (const l of head) {
+      const m = leftCol(l).match(RE_NO_STRICT);
+      if (m) return normDocNo(m[1]);
+    }
+    // 3) Dòng "Số: …" ở bất kỳ đâu trong khối đầu trang
+    for (const l of head) {
+      const m = l.match(RE_NO_STRICT);
+      if (m) return normDocNo(m[1]);
+    }
+    // 4) Cuối cùng mới quét toàn văn, cho phép thiếu dấu hai chấm
+    const m = flat(textTabs).match(RE_NO_LOOSE);
+    return m ? normDocNo(m[1]) : "";
   }
 
   // Cơ quan gửi: khối chữ IN HOA ở góc trên bên trái, trước dòng "Số:"
   function findSender(text) {
     const head = text.split("\n").slice(0, 14);
-    const SKIP = /CỘNG\s*HÒA|ĐỘC\s*LẬP|TỰ\s*DO|HẠNH\s*PHÚC|^S[ốôo]\s*:|^[-–—_=\s]+$|^\s*$/i;
+    // Dòng kẻ ngang / dòng trống ở cột trái: bỏ qua, KHÔNG coi là hết khối tên cơ quan
+    const SEP = /^[-–—_=─-╿.\s]*$/;
+    const STOP = /CỘNG\s*HÒA|ĐỘC\s*LẬP|TỰ\s*DO|HẠNH\s*PHÚC|^S[ốôo]\s*:/i;
+    // Chỉ cần 2 chữ cái: tên cơ quan dài bị xuống dòng để lại mảnh rất ngắn ("HÓA", "NƯỚC")
     const isUpper = (s) => {
       const letters = s.replace(/[^A-Za-zÀ-ỹĐđ]/g, "");
-      return letters.length >= 4 && letters === letters.toUpperCase();
+      return letters.length >= 2 && letters === letters.toUpperCase();
     };
     const lines = [];
     for (const raw of head) {
       const s = leftCol(raw);                            // chỉ lấy cột bên trái
-      if (SKIP.test(s)) { if (lines.length) break; continue; }
+      if (SEP.test(s)) continue;
+      if (STOP.test(s)) { if (lines.length) break; continue; }
       if (!isUpper(s)) { if (lines.length) break; continue; }
       lines.push(s);
       if (lines.length >= 4) break;
@@ -217,8 +262,10 @@
     const take = i < 0 ? lines.slice(-1) : [lines[i], ...lines.slice(i + 1).filter((s) => !ORG_KEY.test(s))];
     return orgCase(take.join(" ").replace(/\s{2,}/g, " ").replace(/[-–—_\s]+$/, "").trim());
   }
-  // Từ chỉ loại cơ quan ban hành, dùng để nhận ra đâu là dòng mở đầu tên cơ quan
-  const ORG_KEY = /(BỘ|SỞ|CỤC|ỦY\s*BAN|UBND|HĐND|HỘI\s*ĐỒNG|THANH\s*TRA|PHÒNG|BAN|VIỆN|TRUNG\s*TÂM|VĂN\s*PHÒNG|CÔNG\s*AN|TÒA\s*ÁN|CHI\s*NHÁNH|TỔNG\s*CÔNG\s*TY|CÔNG\s*TY|NGÂN\s*HÀNG|TRƯỜNG|ĐOÀN)\b/i;
+  // Từ chỉ loại cơ quan ban hành, dùng để nhận ra đâu là dòng MỞ ĐẦU tên cơ quan.
+  // Phải neo ^ và dùng (\s|$) thay cho \b: \b của JS chỉ hiểu chữ ASCII nên
+  // "SỞ\b" không bao giờ khớp (Ở không phải ký tự \w).
+  const ORG_KEY = /^(TỔNG\s*CỤC|CHI\s*CỤC|TỔNG\s*CÔNG\s*TY|ỦY\s*BAN|UỶ\s*BAN|HỘI\s*ĐỒNG|THANH\s*TRA|VĂN\s*PHÒNG|TRUNG\s*TÂM|CHI\s*NHÁNH|CÔNG\s*AN|TÒA\s*ÁN|CÔNG\s*TY|NGÂN\s*HÀNG|HỌC\s*VIỆN|BỘ|SỞ|CỤC|VỤ|VIỆN|PHÒNG|BAN|TRƯỜNG|ĐOÀN|UBND|HĐND)(\s|$)/i;
 
   // ---------------------------------------------------------------
   //  Viết hoa tên cơ quan theo thể thức hành chính (Nghị định 30/2020):
@@ -282,6 +329,9 @@
     return (prefix + [head, rest ? capPhrase(rest) : ""].filter(Boolean).join(" ")).trim();
   }
 
+  // Các cách mở đầu đoạn nội dung — gặp là biết đã hết phần trích yếu
+  const BODY_OPEN = /^(Thực\s+hiện|Căn\s+cứ|Theo|Trên\s+cơ\s+sở|Để|Nhằm|Qua|Xét|Hiện\s+nay|Vừa\s+qua|Ngày|Thời\s+gian|Kính\s+gửi|Trả\s+lời|Sau\s+khi|Tiếp)\b/i;
+
   // Trích yếu: dòng "V/v ..." (có thể tràn sang dòng sau)
   function findSubject(text) {
     const lines = text.split("\n");
@@ -291,7 +341,8 @@
       for (let j = i + 1; j < Math.min(i + 3, lines.length); j++) {
         const nx = lines[j].trim();
         if (!nx || /^S[ốôo]\s*:|^Kính\s*gửi|^CỘNG|^\(?\s*V\s*\/\s*v/i.test(nx)) break;
-        if (/^(HỎA\s*TỐC|THƯỢNG\s*KHẨN|KHẨN|MẬT|TỐI\s*MẬT)\b/i.test(nx)) break;   // dấu độ khẩn / độ mật
+        if (/^(HỎA\s*TỐC|THƯỢNG\s*KHẨN|KHẨN|MẬT|TỐI\s*MẬT)(\s|$)/i.test(nx)) break;   // dấu độ khẩn / độ mật
+        if (BODY_OPEN.test(nx)) break;                                              // đã sang đoạn nội dung
         if (/^[A-ZĐÀ-Ỹ\s,.\-\/]+$/.test(nx)) break;                                 // dòng IN HOA = tiêu đề khác
         s += " " + nx;
       }
@@ -339,7 +390,7 @@
   function parse(text) {
     const t = clean(text);                    // còn TAB: dùng để tách cột khi tìm cơ quan gửi
     const p = flat(t);                        // bản phẳng: dùng cho số VB, ngày, trích yếu, thời hạn
-    const doc_number = findDocNumber(p);
+    const doc_number = findDocNumber(t);          // cần TAB để biết đâu là cột bên trái
     const doc_date = findDocDate(t);
     const deadline = findDeadline(p, doc_date);
     // Mọi ngày tìm thấy trong văn bản, để người dùng bấm chọn lại nếu máy đoán sai
