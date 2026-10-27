@@ -221,6 +221,33 @@ window.COMPANY_FIELDS = [
 ];
 
 // ---------------------------------------------------------------
+// Tìm kiếm nâng cao trong tab Profile doanh nghiệp
+// ---------------------------------------------------------------
+// Cú pháp "tiền tố:giá trị" để tìm trong đúng một nhóm trường, ví dụ  tinh:nghệ an  ·  gp:1234
+// Thêm / sửa tiền tố ở đây: "alias" là các chữ gõ được, "keys" là khóa trường trong COMPANY_FIELDS.
+window.COMPANY_SEARCH_PREFIX = [
+  { alias: ["msdn", "mst", "ma", "mskd", "tax"],          keys: ["tax_code"] },
+  { alias: ["ten", "tendn", "name"],                      keys: ["name", "short_name", "en_name"] },
+  { alias: ["gp", "sogp", "giayphep"],                    keys: ["license_number", "first_license_number", "law69_number", "ds101"] },
+  { alias: ["dd", "daidien", "nguoidaidien", "rep"],      keys: ["legal_rep"] },
+  { alias: ["tinh", "tp", "province"],                    keys: ["province"] },
+  { alias: ["dc", "diachi", "address"],                   keys: ["address", "contact_address", "training_address", "rep_offices", "biz_locations", "branches"] },
+  { alias: ["tt", "thitruong", "market"],                 keys: ["markets"] },
+  { alias: ["nv", "nhanvien", "nvnv"],                    keys: ["staff_list"] },
+  { alias: ["dt", "csdt", "daotao"],                      keys: ["training_facility", "training_address"] },
+  { alias: ["kq", "kyquy", "nganhang", "bank"],           keys: ["deposit_bank", "deposit_account", "deposit_ref", "deposit_amount"] },
+  { alias: ["von", "capital"],                            keys: ["charter_capital"] },
+  { alias: ["loaihinh", "lh", "type"],                    keys: ["company_type"] },
+  { alias: ["lienhe", "phone", "dthoai", "email", "web"], keys: ["phone", "fax", "email", "website"] },
+  { alias: ["gc", "ghichu", "note"],                      keys: ["note"] },
+  { alias: ["cd", "chamdut", "end"],                      keys: ["ended_year", "ended_type", "ended_reason", "ended_ref"] },
+];
+
+// Những trường hiện ngay trên bảng danh sách — khớp ở đây thì không cần ghi dòng "khớp: …"
+window.COMPANY_LIST_COLUMNS = ["tax_code", "name", "short_name", "company_type", "license_number",
+  "law69_number", "license_date", "legal_rep", "province", "phone", "email"];
+
+// ---------------------------------------------------------------
 // Hồ sơ doanh nghiệp đầy đủ — danh mục cho các bảng lịch sử
 // ---------------------------------------------------------------
 // Tình trạng chấp hành quyết định xử phạt VPHC

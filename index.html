@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=37">
+<link rel="stylesheet" href="css/style.css?v=38">
 </head>
 <body>
 
@@ -206,7 +206,8 @@
     <section id="view-companies" class="view" hidden>
       <div class="tiles" id="company-tiles"></div>
       <div class="filters">
-        <input type="search" id="c-search" placeholder="Tìm mã số DN, tên, số GP, người đại diện, địa chỉ, điện thoại…">
+        <input type="search" id="c-search" placeholder="Gõ không dấu cũng được · nhiều từ khóa cách nhau bằng dấu cách · tinh:&quot;nghệ an&quot; gp:1234">
+        <button class="btn ghost" id="c-help-btn" type="button" title="Cách gõ tìm kiếm">?</button>
         <select id="c-status">
           <option value="active">Đang hoạt động</option>
           <option value="ended">Đã chấm dứt</option>
@@ -214,11 +215,52 @@
         </select>
         <select id="cf-province"><option value="">Mọi tỉnh / TP</option></select>
         <select id="c-type"><option value="">Mọi loại hình</option></select>
+        <button class="btn ghost" id="c-adv-btn" type="button">⚙ Lọc nâng cao<span id="c-adv-count"></span></button>
         <div class="spacer"></div>
         <button class="btn ghost" id="export-companies-btn">⬇ Xuất Excel (CSV)</button>
         <button class="btn ghost lead-only" id="import-companies-btn">⬆ Nhập từ Excel</button>
         <button class="btn primary lead-only" id="add-company-btn">+ Thêm doanh nghiệp</button>
       </div>
+
+      <!-- Hướng dẫn cú pháp tìm kiếm — bật/tắt bằng nút "?" -->
+      <div class="card search-help" id="c-help" hidden>
+        <b>Cách gõ ô tìm kiếm</b>
+        <ul>
+          <li>Gõ <b>không dấu</b> vẫn ra kết quả: <code>cong ty hoang long</code> tìm được “Công ty Hoàng Long”.</li>
+          <li>Nhiều từ khóa cách nhau bằng dấu cách thì phải <b>khớp tất cả</b>, không cần đúng thứ tự: <code>hoang long nghe an</code>.</li>
+          <li>Cần đúng cụm từ thì đặt trong <b>ngoặc kép</b>: <code>"xuat khau lao dong"</code>.</li>
+          <li>Loại trừ bằng dấu trừ — cả cụm thì thêm ngoặc kép: <code>ha noi -"chi nhanh"</code>.</li>
+          <li>Tìm trong đúng một nhóm trường bằng <b>tiền tố</b> (giá trị nhiều chữ thì để trong ngoặc kép): <code>tinh:"nghe an"</code> · <code>gp:1234</code> · <code>dd:"nguyen van a"</code> ·
+              <code>msdn:0101234567</code> · <code>tt:"nhat ban"</code> · <code>nv:thanh</code> · <code>kq:vietcombank</code> ·
+              <code>dc:"cau giay"</code> · <code>daotao:</code> · <code>von:</code> · <code>gc:</code> · <code>cd:"thu hoi"</code>.</li>
+          <li>Tìm trên <b>toàn bộ</b> các trường của hồ sơ (địa chỉ liên hệ, chi nhánh, VPĐD, cơ sở đào tạo, thị trường, nhân viên nghiệp vụ,
+              ký quỹ, ghi chú, lý do chấm dứt…). Trường nào khớp mà không có trên bảng thì hiện dòng “khớp: …” dưới tên doanh nghiệp.</li>
+        </ul>
+      </div>
+
+      <!-- Lọc nâng cao: khoảng ngày cấp giấy phép, vốn điều lệ, tiền ký quỹ -->
+      <div class="card adv-filters" id="c-adv" hidden>
+        <div class="adv-row">
+          <label>Ngày cấp GP từ <input type="date" id="cf-lic-from"></label>
+          <label>đến <input type="date" id="cf-lic-to"></label>
+        </div>
+        <div class="adv-row">
+          <label>Vốn điều lệ từ <input type="text" id="cf-cap-min" placeholder="vd: 5 tỷ"></label>
+          <label>đến <input type="text" id="cf-cap-max" placeholder="vd: 20 tỷ"></label>
+          <span class="muted small" id="cf-cap-hint"></span>
+        </div>
+        <div class="adv-row">
+          <label>Ký quỹ từ <input type="text" id="cf-dep-min" placeholder="vd: 2 tỷ"></label>
+          <label>đến <input type="text" id="cf-dep-max" placeholder="vd: 2 tỷ"></label>
+          <span class="muted small" id="cf-dep-hint"></span>
+        </div>
+        <div class="adv-row">
+          <span class="muted small">Chỉ xét hồ sơ có số liệu — hồ sơ để trống ô vốn / ký quỹ sẽ không nằm trong kết quả khi đặt mức “đến”.</span>
+          <div class="spacer"></div>
+          <button class="btn ghost" id="c-adv-reset" type="button">Bỏ lọc nâng cao</button>
+        </div>
+      </div>
+      <p class="search-summary muted small" id="c-search-summary" hidden></p>
       <div class="card table-wrap">
         <table class="tasks-table" id="companies-table">
           <thead>
@@ -997,9 +1039,9 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=32"></script>
+<script src="js/config.js?v=33"></script>
 <script src="js/docread.js?v=14"></script>
-<script src="js/app.js?v=41"></script>
+<script src="js/app.js?v=42"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>

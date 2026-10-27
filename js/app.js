@@ -1115,24 +1115,188 @@
     if (!$("#c-status-f").options.length) $("#c-status-f").innerHTML = CSTAT.map((s) => `<option value="${s.value}">${esc(s.label)}</option>`).join("");
   }
 
+  const C_ADV = ["#cf-lic-from", "#cf-lic-to", "#cf-cap-min", "#cf-cap-max", "#cf-dep-min", "#cf-dep-max"];
+
   function applyCompanyFilter(f = {}) {
     $("#c-search").value = f.search || "";
     $("#c-status").value = f.status || "active";
     $("#cf-province").value = f.province || "";
     $("#c-type").value = f.type || "";
+    C_ADV.forEach((s) => ($(s).value = ""));
+    syncAdvBadge();
     renderCompanies();
   }
 
+  // ---------- Tìm kiếm trong Profile doanh nghiệp ----------
+  // Bỏ dấu + đổi đ → d để gõ không dấu vẫn ra kết quả: "dao tao" khớp "đào tạo", "nghe an" khớp "Nghệ An"
+  const vchar = (s) => String(s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/đ/g, "d").replace(/Đ/g, "d").toLowerCase();
+  const vnorm = (s) => vchar(s).replace(/\s+/g, " ").trim();
+
+  // Mỗi hồ sơ được đánh chỉ mục một lần: từng trường thành chuỗi đã bỏ dấu để so khớp cho nhanh.
+  // Chỉ mục khóa theo chính đối tượng hồ sơ, nên mỗi lần nạp lại dữ liệu là chỉ mục tự mới theo.
+  const cIndexCache = new WeakMap();
+  function companyIndex(c) {
+    let ix = cIndexCache.get(c);
+    if (ix) return ix;
+    ix = {};
+    CFIELDS.forEach((f) => {
+      const v = c[f.key];
+      if (v == null || v === "") return;
+      let s = String(v);
+      if (f.date) s += " " + fmtDate(v);                         // tìm được cả 15/03/2024 lẫn 2024-03-15
+      if (f.num) s += " " + fmtVnd(v);                           // tìm được 20.000.000.000 đồng
+      if (f.key === "tax_code") s += " " + s.replace(/\D/g, ""); // 0101234567-001 cũng khớp khi gõ liền
+      ix[f.key] = vnorm(s);
+    });
+    cIndexCache.set(c, ix);
+    return ix;
+  }
+
+  // Tiền tố tinh: gp: … lấy từ config.js
+  const CPREFIX = {};
+  (window.COMPANY_SEARCH_PREFIX || []).forEach((g) => (g.alias || []).forEach((a) => (CPREFIX[vnorm(a)] = g.keys)));
+  const CLIST_COLS = window.COMPANY_LIST_COLUMNS || [];
+
+  // Tách ô tìm kiếm thành các từ khóa: cách nhau bằng khoảng trắng thì phải khớp tất cả,
+  // cụm từ trong ngoặc kép giữ nguyên, -từ để loại trừ, tinh:ha noi để tìm trong một nhóm trường.
+  function parseCQuery(raw) {
+    const terms = [];
+    const re = /(-?)(?:([A-Za-zÀ-ỹ_]+):)?(?:"([^"]*)"|(\S+))/g;
+    let m;
+    while ((m = re.exec(raw))) {
+      const [, neg, fld, quoted, bare] = m;
+      let txt = quoted != null ? quoted : bare || "";
+      let keys = null;
+      if (fld) {
+        keys = CPREFIX[vnorm(fld)] || null;
+        if (!keys) txt = fld + ":" + txt;      // tiền tố lạ (hoặc http://…) thì coi như chữ bình thường
+      }
+      txt = vnorm(txt);
+      if (txt) terms.push({ keys, txt, neg: neg === "-" });
+    }
+    return terms;
+  }
+
+  // Trả về các trường đã khớp của từng từ khóa, hoặc null nếu hồ sơ không thỏa mãn
+  function cMatch(c, terms) {
+    const ix = companyIndex(c);
+    const hits = [];
+    for (const t of terms) {
+      const keys = t.keys || Object.keys(ix);
+      const found = keys.filter((k) => ix[k] && ix[k].includes(t.txt));
+      if (t.neg ? found.length : !found.length) return null;
+      if (!t.neg) hits.push(found);
+    }
+    return hits;
+  }
+
+  function cAdvFilter() {
+    return {
+      from: $("#cf-lic-from").value, to: $("#cf-lic-to").value,
+      capMin: parseVnd($("#cf-cap-min").value), capMax: parseVnd($("#cf-cap-max").value),
+      depMin: parseVnd($("#cf-dep-min").value), depMax: parseVnd($("#cf-dep-max").value),
+    };
+  }
+
+  // Đếm số điều kiện nâng cao đang bật để hiện lên nút Lọc nâng cao
+  function syncAdvBadge() {
+    const btn = $("#c-adv-btn");
+    if (!btn) return;
+    const n = C_ADV.filter((s) => $(s).value.trim()).length;
+    btn.classList.toggle("on", n > 0);
+    $("#c-adv-count").textContent = n ? ` (${n})` : "";
+    const cap = parseVnd($("#cf-cap-min").value), capx = parseVnd($("#cf-cap-max").value);
+    const dep = parseVnd($("#cf-dep-min").value), depx = parseVnd($("#cf-dep-max").value);
+    $("#cf-cap-hint").textContent = [cap && "từ " + fmtVnd(cap), capx && "đến " + fmtVnd(capx)].filter(Boolean).join(" ");
+    $("#cf-dep-hint").textContent = [dep && "từ " + fmtVnd(dep), depx && "đến " + fmtVnd(depx)].filter(Boolean).join(" ");
+  }
+
   function filteredCompanies() {
-    const q = $("#c-search").value.trim().toLowerCase();
+    const terms = parseCQuery($("#c-search").value.trim());
     const st = $("#c-status").value, pv = $("#cf-province").value, ty = $("#c-type").value;
+    const a = cAdvFilter();
+    state.cTerms = terms;
+    state.cHits = new Map();
     return state.companies.filter((c) => {
       if (st !== "all" && c.status !== st) return false;
       if (pv && (c.province || "").trim() !== pv) return false;
       if (ty && (c.company_type || "").trim() !== ty) return false;
-      if (q && !`${c.tax_code} ${c.name} ${c.short_name} ${c.en_name} ${c.license_number} ${c.legal_rep} ${c.address} ${c.phone} ${c.email}`.toLowerCase().includes(q)) return false;
+      const ld = (c.license_date || "").slice(0, 10);
+      if (a.from && (!ld || ld < a.from)) return false;
+      if (a.to && (!ld || ld > a.to)) return false;
+      const cap = Number(c.charter_capital) || 0, dep = Number(c.deposit_amount) || 0;
+      if (a.capMin != null && cap < a.capMin) return false;
+      if (a.capMax != null && !(cap > 0 && cap <= a.capMax)) return false;
+      if (a.depMin != null && dep < a.depMin) return false;
+      if (a.depMax != null && !(dep > 0 && dep <= a.depMax)) return false;
+      if (terms.length) {
+        const h = cMatch(c, terms);
+        if (!h) return false;
+        state.cHits.set(c.id, h);
+      }
       return true;
     });
+  }
+
+  // Dòng tóm tắt dưới ô tìm kiếm: tìm thấy bao nhiêu, đang áp những từ khóa / điều kiện nào
+  function renderCSummary(n) {
+    const box = $("#c-search-summary");
+    if (!box) return;
+    const tm = state.cTerms || [];
+    const chips = tm.map((t) => {
+      const fld = t.keys ? ((CF_MAP[t.keys[0]] || {}).label || t.keys[0]) + ": " : "";
+      return `<span class="chip${t.neg ? " neg" : ""}">${t.neg ? "không có " : ""}${esc(fld)}${esc(t.txt)}</span>`;
+    });
+    const a = cAdvFilter();
+    if (a.from || a.to) chips.push(`<span class="chip">ngày cấp GP ${a.from ? fmtDate(a.from) : "…"} → ${a.to ? fmtDate(a.to) : "…"}</span>`);
+    if (a.capMin != null || a.capMax != null) chips.push(`<span class="chip">vốn ${a.capMin != null ? fmtVnd(a.capMin) : "…"} → ${a.capMax != null ? fmtVnd(a.capMax) : "…"}</span>`);
+    if (a.depMin != null || a.depMax != null) chips.push(`<span class="chip">ký quỹ ${a.depMin != null ? fmtVnd(a.depMin) : "…"} → ${a.depMax != null ? fmtVnd(a.depMax) : "…"}</span>`);
+    box.hidden = !chips.length;
+    box.innerHTML = chips.length ? `<b>${n}</b> doanh nghiệp · ${chips.join("")}` : "";
+  }
+
+  // Bôi vàng từ khóa ngay trên bảng: so khớp trên bản đã bỏ dấu rồi chiếu lại vị trí của chuỗi gốc
+  function hlMark(text, terms, key) {
+    const s = String(text ?? "");
+    if (!s) return "";
+    // Từ khóa có tiền tố (tinh:…) chỉ bôi vàng trong đúng nhóm trường của nó
+    const list = (terms || []).filter((t) => !t.neg && t.txt && (!t.keys || !key || t.keys.includes(key)));
+    if (!list.length) return esc(s);
+    let norm = "";
+    const map = [];
+    for (let i = 0; i < s.length; i++) {
+      const d = /\s/.test(s[i]) ? " " : vchar(s[i]);
+      for (const ch of d) { norm += ch; map.push(i); }
+    }
+    const ranges = [];
+    list.forEach((t) => {
+      let p = 0;
+      while ((p = norm.indexOf(t.txt, p)) !== -1) {
+        ranges.push([map[p], (map[p + t.txt.length - 1] ?? s.length - 1) + 1]);
+        p += t.txt.length;
+      }
+    });
+    if (!ranges.length) return esc(s);
+    ranges.sort((x, y) => x[0] - y[0]);
+    let out = "", at = 0;
+    ranges.forEach(([b, e]) => {
+      if (e <= at) return;
+      b = Math.max(b, at);
+      out += esc(s.slice(at, b)) + "<mark>" + esc(s.slice(b, e)) + "</mark>";
+      at = e;
+    });
+    return out + esc(s.slice(at));
+  }
+
+  // Dòng "khớp: Thị trường, Ghi chú" — chỉ cho từ khóa nào khớp hoàn toàn ngoài các cột của bảng
+  function hitNote(c) {
+    const hits = (state.cHits && state.cHits.get(c.id)) || [];
+    const extra = [];
+    hits.forEach((keys) => {
+      if (keys.some((k) => CLIST_COLS.includes(k))) return;   // đã bôi vàng ngay trên bảng
+      keys.forEach((k) => { const l = (CF_MAP[k] || {}).label || k; if (!extra.includes(l)) extra.push(l); });
+    });
+    return extra.length ? `<div class="hit-in">khớp: ${esc(extra.join(", "))}</div>` : "";
   }
 
   function sortCompanies(list) {
@@ -1177,20 +1341,23 @@
     const shown = list.slice(0, SHOW_MAX);
     $("#companies-more").hidden = list.length <= SHOW_MAX;
     $("#companies-more").textContent = `Đang hiển thị ${SHOW_MAX} / ${list.length} doanh nghiệp — dùng ô tìm kiếm hoặc bộ lọc để thu hẹp.`;
+    const tm = state.cTerms || [];
+    const hl = (v, key) => hlMark(v, tm, key);
     $("#companies-body").innerHTML = shown.map((c) => {
       const s = fmtCompanyStatus(c);
-      const contact = [c.phone, c.email].filter(Boolean).map((x) => esc(String(x).split(/\n/)[0])).join("<br>");
+      const contact = [["phone", c.phone], ["email", c.email]].filter(([, v]) => v).map(([k, v]) => hl(String(v).split(/\n/)[0], k)).join("<br>");
       return `<tr data-id="${c.id}">
-        <td class="nowrap mono">${validTax(c.tax_code) ? esc(c.tax_code) : `<span class="muted" title="Mã số chưa hợp lệ">${esc(c.tax_code) || "—"}</span>`}</td>
-        <td class="content-cell"><b>${esc(c.name)}</b><div class="sender">${esc([c.short_name, c.company_type].filter(Boolean).join(" · "))}</div></td>
-        <td class="nowrap mono">${esc(c.license_number) || "—"}${c.law69_number ? `<br><span class="muted small">L69: ${esc(c.law69_number)}</span>` : ""}</td>
-        <td class="nowrap mono">${fmtDate(c.license_date)}</td>
-        <td>${esc(c.legal_rep)}</td>
-        <td class="nowrap">${esc(c.province)}</td>
+        <td class="nowrap mono">${validTax(c.tax_code) ? hl(c.tax_code, "tax_code") : `<span class="muted" title="Mã số chưa hợp lệ">${hl(c.tax_code, "tax_code") || "—"}</span>`}</td>
+        <td class="content-cell"><b>${hl(c.name, "name")}</b><div class="sender">${[["short_name", c.short_name], ["company_type", c.company_type]].filter(([, v]) => v).map(([k, v]) => hl(v, k)).join(" · ")}</div>${hitNote(c)}</td>
+        <td class="nowrap mono">${hl(c.license_number, "license_number") || "—"}${c.law69_number ? `<br><span class="muted small">L69: ${hl(c.law69_number, "law69_number")}</span>` : ""}</td>
+        <td class="nowrap mono">${hl(fmtDate(c.license_date), "license_date")}</td>
+        <td>${hl(c.legal_rep, "legal_rep")}</td>
+        <td class="nowrap">${hl(c.province, "province")}</td>
         <td class="small">${contact || '<span class="muted">—</span>'}</td>
-        <td><span class="tag ${s.cls}">${esc(s.label)}</span>${c.status === "ended" && c.ended_year ? `<br><span class="muted small">${esc(c.ended_year)}</span>` : ""}</td>
+        <td><span class="tag ${s.cls}">${esc(s.label)}</span>${c.status === "ended" && c.ended_year ? `<br><span class="muted small">${hl(c.ended_year, "ended_year")}</span>` : ""}</td>
       </tr>`;
     }).join("") + (list.length === 0 && state.companies.length ? `<tr><td colspan="8" class="muted center">Không có doanh nghiệp nào phù hợp.</td></tr>` : "");
+    renderCSummary(list.length);
   }
 
   const C_TEXT = ["tax_code", "reg_place", "name", "short_name", "en_name", "legal_rep", "company_type", "address", "contact_address",
@@ -2068,7 +2235,18 @@
 
     // Doanh nghiệp
     fillCompanyFilters();
-    ["#c-search", "#c-status", "#cf-province", "#c-type"].forEach((s) => $(s).addEventListener("input", () => { state.cMissing = false; renderCompanies(); }));
+    ["#c-search", "#c-status", "#cf-province", "#c-type"].concat(C_ADV).forEach((s) =>
+      $(s).addEventListener("input", () => { state.cMissing = false; syncAdvBadge(); renderCompanies(); }));
+    $("#c-adv-btn").addEventListener("click", () => ($("#c-adv").hidden = !$("#c-adv").hidden));
+    $("#c-help-btn").addEventListener("click", () => ($("#c-help").hidden = !$("#c-help").hidden));
+    $("#c-adv-reset").addEventListener("click", () => { C_ADV.forEach((s) => ($(s).value = "")); syncAdvBadge(); renderCompanies(); });
+    // Enter trong ô tìm kiếm: chỉ có một kết quả thì mở luôn hồ sơ đó
+    $("#c-search").addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      const rows = filteredCompanies();
+      if (rows.length === 1) openCompany(rows[0].id);
+    });
     $$("#companies-table th[data-sort]").forEach((th) => th.addEventListener("click", () => {
       const k = th.dataset.sort;
       state.csort = { key: k, dir: state.csort.key === k && state.csort.dir === "asc" ? "desc" : "asc" };
