@@ -225,22 +225,23 @@ window.COMPANY_FIELDS = [
 // ---------------------------------------------------------------
 // Cú pháp "tiền tố:giá trị" để tìm trong đúng một nhóm trường, ví dụ  tinh:nghệ an  ·  gp:1234
 // Thêm / sửa tiền tố ở đây: "alias" là các chữ gõ được, "keys" là khóa trường trong COMPANY_FIELDS.
+// "label" là tên hiện trong ô chọn "Tìm trong" cạnh ô tìm kiếm; để trống thì nhóm đó không hiện trong ô chọn.
 window.COMPANY_SEARCH_PREFIX = [
-  { alias: ["msdn", "mst", "ma", "mskd", "tax"],          keys: ["tax_code"] },
-  { alias: ["ten", "tendn", "name"],                      keys: ["name", "short_name", "en_name"] },
-  { alias: ["gp", "sogp", "giayphep"],                    keys: ["license_number", "first_license_number", "law69_number", "ds101"] },
-  { alias: ["dd", "daidien", "nguoidaidien", "rep"],      keys: ["legal_rep"] },
-  { alias: ["tinh", "tp", "province"],                    keys: ["province"] },
-  { alias: ["dc", "diachi", "address"],                   keys: ["address", "contact_address", "training_address", "rep_offices", "biz_locations", "branches"] },
-  { alias: ["tt", "thitruong", "market"],                 keys: ["markets"] },
-  { alias: ["nv", "nhanvien", "nvnv"],                    keys: ["staff_list"] },
-  { alias: ["dt", "csdt", "daotao"],                      keys: ["training_facility", "training_address"] },
-  { alias: ["kq", "kyquy", "nganhang", "bank"],           keys: ["deposit_bank", "deposit_account", "deposit_ref", "deposit_amount"] },
-  { alias: ["von", "capital"],                            keys: ["charter_capital"] },
-  { alias: ["loaihinh", "lh", "type"],                    keys: ["company_type"] },
-  { alias: ["lienhe", "phone", "dthoai", "email", "web"], keys: ["phone", "fax", "email", "website"] },
-  { alias: ["gc", "ghichu", "note"],                      keys: ["note"] },
-  { alias: ["cd", "chamdut", "end"],                      keys: ["ended_year", "ended_type", "ended_reason", "ended_ref"] },
+  { label: "Mã số doanh nghiệp",        alias: ["msdn", "mst", "ma", "mskd", "tax"],          keys: ["tax_code"] },
+  { label: "Tên doanh nghiệp",          alias: ["ten", "tendn", "name"],                      keys: ["name", "short_name", "en_name"] },
+  { label: "Số giấy phép",              alias: ["gp", "sogp", "giayphep"],                    keys: ["license_number", "first_license_number", "law69_number", "ds101"] },
+  { label: "Người đại diện theo PL",     alias: ["dd", "daidien", "nguoidaidien", "rep"],      keys: ["legal_rep"] },
+  { label: "Tỉnh / Thành phố",          alias: ["tinh", "tp", "province"],                    keys: ["province"] },
+  { label: "Địa chỉ (mọi loại)",        alias: ["dc", "diachi", "address"], keys: ["address", "contact_address", "training_address", "rep_offices", "biz_locations", "branches"] },
+  { label: "Thị trường hoạt động",      alias: ["tt", "thitruong", "market"],                 keys: ["markets"] },
+  { label: "Nhân viên nghiệp vụ",       alias: ["nv", "nhanvien", "nvnv"],                    keys: ["staff_list"] },
+  { label: "Cơ sở đào tạo",             alias: ["dt", "csdt", "daotao"],                  keys: ["training_facility", "training_address"] },
+  { label: "Ký quỹ",                    alias: ["kq", "kyquy", "nganhang", "bank"], keys: ["deposit_bank", "deposit_account", "deposit_ref", "deposit_amount"] },
+  { label: "Vốn điều lệ",               alias: ["von", "capital"],                            keys: ["charter_capital"] },
+  { label: "Loại hình",                 alias: ["loaihinh", "lh", "type"],                    keys: ["company_type"] },
+  { label: "Liên hệ / website",         alias: ["lienhe", "phone", "dthoai", "email", "web"], keys: ["phone", "fax", "email", "website"] },
+  { label: "Ghi chú",                   alias: ["gc", "ghichu", "note"],                      keys: ["note"] },
+  { label: "Chấm dứt hoạt động",        alias: ["cd", "chamdut", "end"],                      keys: ["ended_year", "ended_type", "ended_reason", "ended_ref"] },
 ];
 
 // Những trường hiện ngay trên bảng danh sách — khớp ở đây thì không cần ghi dòng "khớp: …"

@@ -1110,6 +1110,7 @@
     const prov = [...new Set(state.companies.map((c) => (c.province || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, "vi"));
     keep($("#cf-province"), prov.map((p) => `<option>${esc(p)}</option>`).join(""), "Mọi tỉnh / TP");
     $("#c-province-list").innerHTML = prov.map((p) => `<option value="${esc(p)}">`).join("");
+    fillSearchFields();
     const types = [...new Set(state.companies.map((c) => (c.company_type || "").trim()).filter(Boolean))].sort();
     keep($("#c-type"), types.map((p) => `<option>${esc(p)}</option>`).join(""), "Mọi loại hình");
     if (!$("#c-status-f").options.length) $("#c-status-f").innerHTML = CSTAT.map((s) => `<option value="${s.value}">${esc(s.label)}</option>`).join("");
@@ -1117,11 +1118,31 @@
 
   const C_ADV = ["#cf-lic-from", "#cf-lic-to", "#cf-cap-min", "#cf-cap-max", "#cf-dep-min", "#cf-dep-max"];
 
+  // Ô chọn "Tìm trong": nhóm trường hay dùng (lấy từ COMPANY_SEARCH_PREFIX) + từng trường riêng lẻ
+  function fillSearchFields() {
+    const sel = $("#c-field");
+    if (!sel || sel.dataset.filled) return;
+    const groups = (window.COMPANY_SEARCH_PREFIX || []).filter((g) => g.label);
+    sel.innerHTML = `<option value="">Tìm trong: mọi trường</option>`
+      + `<optgroup label="Nhóm hay dùng">${groups.map((g, i) => `<option value="g:${i}">${esc(g.label)}</option>`).join("")}</optgroup>`
+      + `<optgroup label="Từng trường">${CFIELDS.map((f) => `<option value="f:${f.key}">${esc(f.label)}</option>`).join("")}</optgroup>`;
+    sel.dataset.filled = "1";
+  }
+
+  // Trả về danh sách khóa trường đang giới hạn, hoặc null khi tìm trong mọi trường
+  function cScopeKeys() {
+    const v = ($("#c-field") || {}).value || "";
+    if (v.startsWith("g:")) return ((window.COMPANY_SEARCH_PREFIX || [])[+v.slice(2)] || {}).keys || null;
+    if (v.startsWith("f:")) return [v.slice(2)];
+    return null;
+  }
+
   function applyCompanyFilter(f = {}) {
     $("#c-search").value = f.search || "";
     $("#c-status").value = f.status || "active";
     $("#cf-province").value = f.province || "";
     $("#c-type").value = f.type || "";
+    $("#c-field").value = "";
     C_ADV.forEach((s) => ($(s).value = ""));
     syncAdvBadge();
     renderCompanies();
@@ -1212,7 +1233,8 @@
   }
 
   function filteredCompanies() {
-    const terms = parseCQuery($("#c-search").value.trim());
+    const scope = cScopeKeys();
+    const terms = parseCQuery($("#c-search").value.trim()).map((t) => (t.keys || !scope ? t : { ...t, keys: scope, auto: true }));
     const st = $("#c-status").value, pv = $("#cf-province").value, ty = $("#c-type").value;
     const a = cAdvFilter();
     state.cTerms = terms;
@@ -1244,9 +1266,11 @@
     if (!box) return;
     const tm = state.cTerms || [];
     const chips = tm.map((t) => {
-      const fld = t.keys ? ((CF_MAP[t.keys[0]] || {}).label || t.keys[0]) + ": " : "";
+      const fld = t.keys && !t.auto ? ((CF_MAP[t.keys[0]] || {}).label || t.keys[0]) + ": " : "";
       return `<span class="chip${t.neg ? " neg" : ""}">${t.neg ? "không có " : ""}${esc(fld)}${esc(t.txt)}</span>`;
     });
+    const sel = $("#c-field");
+    if (sel && sel.value) chips.unshift(`<span class="chip">chỉ tìm trong: ${esc(sel.options[sel.selectedIndex].textContent)}</span>`);
     const a = cAdvFilter();
     if (a.from || a.to) chips.push(`<span class="chip">ngày cấp GP ${a.from ? fmtDate(a.from) : "…"} → ${a.to ? fmtDate(a.to) : "…"}</span>`);
     if (a.capMin != null || a.capMax != null) chips.push(`<span class="chip">vốn ${a.capMin != null ? fmtVnd(a.capMin) : "…"} → ${a.capMax != null ? fmtVnd(a.capMax) : "…"}</span>`);
@@ -2235,7 +2259,7 @@
 
     // Doanh nghiệp
     fillCompanyFilters();
-    ["#c-search", "#c-status", "#cf-province", "#c-type"].concat(C_ADV).forEach((s) =>
+    ["#c-search", "#c-status", "#cf-province", "#c-type", "#c-field"].concat(C_ADV).forEach((s) =>
       $(s).addEventListener("input", () => { state.cMissing = false; syncAdvBadge(); renderCompanies(); }));
     $("#c-adv-btn").addEventListener("click", () => ($("#c-adv").hidden = !$("#c-adv").hidden));
     $("#c-help-btn").addEventListener("click", () => ($("#c-help").hidden = !$("#c-help").hidden));

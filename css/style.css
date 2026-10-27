@@ -211,6 +211,7 @@ tr.group-row td .count { font-weight: 400; color: var(--muted); font-size: 12px;
 
 /* ---- Tìm kiếm Profile doanh nghiệp ---- */
 .filters #c-help-btn { min-width: auto; padding: 6px 12px; font-weight: 700; }
+.filters #c-field { max-width: 230px; }
 #c-adv-btn.on { border-color: var(--primary); color: var(--primary); }
 .adv-filters, .search-help { margin-top: 8px; padding: 10px 14px; }
 .adv-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 4px 0; }

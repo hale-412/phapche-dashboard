@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=38">
+<link rel="stylesheet" href="css/style.css?v=39">
 </head>
 <body>
 
@@ -207,6 +207,7 @@
       <div class="tiles" id="company-tiles"></div>
       <div class="filters">
         <input type="search" id="c-search" placeholder="Gõ không dấu cũng được · nhiều từ khóa cách nhau bằng dấu cách · tinh:&quot;nghệ an&quot; gp:1234">
+        <select id="c-field" title="Chọn trường để tìm trong đúng trường đó"><option value="">Tìm trong: mọi trường</option></select>
         <button class="btn ghost" id="c-help-btn" type="button" title="Cách gõ tìm kiếm">?</button>
         <select id="c-status">
           <option value="active">Đang hoạt động</option>
@@ -230,7 +231,8 @@
           <li>Nhiều từ khóa cách nhau bằng dấu cách thì phải <b>khớp tất cả</b>, không cần đúng thứ tự: <code>hoang long nghe an</code>.</li>
           <li>Cần đúng cụm từ thì đặt trong <b>ngoặc kép</b>: <code>"xuat khau lao dong"</code>.</li>
           <li>Loại trừ bằng dấu trừ — cả cụm thì thêm ngoặc kép: <code>ha noi -"chi nhanh"</code>.</li>
-          <li>Tìm trong đúng một nhóm trường bằng <b>tiền tố</b> (giá trị nhiều chữ thì để trong ngoặc kép): <code>tinh:"nghe an"</code> · <code>gp:1234</code> · <code>dd:"nguyen van a"</code> ·
+          <li>Cách nhanh nhất để thu hẹp: chọn trường ở ô <b>“Tìm trong”</b> ngay cạnh ô tìm kiếm, rồi gõ từ khóa như bình thường.</li>
+          <li>Hoặc gõ thẳng <b>tiền tố</b> (giá trị nhiều chữ thì để trong ngoặc kép): <code>tinh:"nghe an"</code> · <code>gp:1234</code> · <code>dd:"nguyen van a"</code> ·
               <code>msdn:0101234567</code> · <code>tt:"nhat ban"</code> · <code>nv:thanh</code> · <code>kq:vietcombank</code> ·
               <code>dc:"cau giay"</code> · <code>daotao:</code> · <code>von:</code> · <code>gc:</code> · <code>cd:"thu hoi"</code>.</li>
           <li>Tìm trên <b>toàn bộ</b> các trường của hồ sơ (địa chỉ liên hệ, chi nhánh, VPĐD, cơ sở đào tạo, thị trường, nhân viên nghiệp vụ,
@@ -1039,9 +1041,9 @@
 <div id="toast" class="toast" hidden></div>
 
 <script src="vendor/supabase-2.117.1.min.js"></script>
-<script src="js/config.js?v=33"></script>
+<script src="js/config.js?v=34"></script>
 <script src="js/docread.js?v=14"></script>
-<script src="js/app.js?v=42"></script>
+<script src="js/app.js?v=43"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>
