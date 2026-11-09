@@ -81,6 +81,7 @@
   db.licenses ||= []; db.license_logs ||= []; db.company_updates ||= []; db.company_update_logs ||= []; db.companies ||= []; // nâng cấp dữ liệu cũ
   // Các bảng lịch sử của hồ sơ doanh nghiệp đầy đủ
   db.company_reps ||= []; db.company_facilities ||= []; db.company_violations ||= []; db.company_inspections ||= []; db.company_events ||= []; db.company_adjustments ||= [];
+  db.notifications ||= [];  // thông báo được giao việc (mục 12 của schema.sql)
   // Luôn phải có ít nhất 1 Trưởng phòng, nếu không sẽ không ai thêm được việc
   if (!db.profiles.some((p) => p.role === "lead" && p.active)) { db.profiles[0].role = "lead"; db.profiles[0].active = true; }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch {} };
@@ -114,6 +115,28 @@
     if (oldU.deadline !== newU.deadline) add("edit", `Hạn xử lý: ${oldU.deadline || "—"} → ${newU.deadline || "—"}`);
     if (oldU.update_type !== newU.update_type) add("edit", `Nội dung cập nhật: ${oldU.update_type} → ${newU.update_type}`);
   }
+  // Mo phong trigger notify_assignment (muc 12 schema.sql): thong bao cho nguoi duoc giao.
+  // Khac voi ban that o 1 diem: che do dung thu chi co 1 nguoi dang dang nhap nen VAN
+  // thong bao khi tu giao cho chinh minh, de xem duoc cai chuong.
+  function notifyAssign(oldRow, newRow, src) {
+    const olds = oldRow ? [oldRow.handler1, oldRow.handler2] : [];
+    const label = src === "license" ? "hồ sơ doanh nghiệp" : src === "update" ? "yêu cầu cập nhật TTDN" : "văn bản / công việc";
+    const body = src === "license"
+      ? [newRow.file_number, newRow.procedure, newRow.company_name].filter(Boolean).join(" · ")
+      : src === "update"
+      ? [newRow.doc_number, newRow.company_name, newRow.update_type].filter(Boolean).join(" · ")
+      : [newRow.doc_number, newRow.sender, newRow.content].filter(Boolean).join(" · ");
+    [newRow.handler1, newRow.handler2].forEach((h, i) => {
+      if (!h || olds.includes(h)) return;
+      db.notifications.push({
+        id: nextId(db.notifications), user_id: h, actor_id: me().id,
+        kind: oldRow ? "reassign" : "assign", source: src, source_id: newRow.id,
+        title: oldRow ? `Bạn được điều chuyển phụ trách ${label} (mức ${i + 1})`
+                      : `Bạn được giao ${label} mới (phụ trách mức ${i + 1})`,
+        body, deadline: newRow.deadline || null, read_at: null, created_at: now(),
+      });
+    });
+  }
   function syncUpdate(u) { if (u.status === "done" && !u.completed_date) u.completed_date = new Date().toISOString().slice(0, 10); }
   function syncLicense(l) { if (l.status === "issued" && !l.issued_date) l.issued_date = new Date().toISOString().slice(0, 10); }
   function syncStatus(t) {
@@ -135,9 +158,9 @@
         if (op === "insert") {
           const list = (Array.isArray(payload) ? payload : [payload]).map((pl) => {
             const t = { ...(name === "tasks" ? { status: "in_progress", progress: 0 } : {}), ...pl, id: nextId(rows), created_by: me().id, created_at: now(), updated_at: now() };
-            if (name === "tasks") { syncStatus(t); rows.push(t); logChange(null, t); }
-            else if (name === "licenses") { syncLicense(t); rows.push(t); logLicense(null, t); }
-            else if (name === "company_updates") { syncUpdate(t); rows.push(t); logUpdate(null, t); }
+            if (name === "tasks") { syncStatus(t); rows.push(t); logChange(null, t); notifyAssign(null, t, "task"); }
+            else if (name === "licenses") { syncLicense(t); rows.push(t); logLicense(null, t); notifyAssign(null, t, "license"); }
+            else if (name === "company_updates") { syncUpdate(t); rows.push(t); logUpdate(null, t); notifyAssign(null, t, "update"); }
             else rows.push(t);
             return t;
           });
@@ -150,9 +173,9 @@
           }
           hit().forEach((r) => {
             const old = { ...r }; Object.assign(r, payload, { updated_at: now() });
-            if (name === "tasks") { syncStatus(r); logChange(old, r); }
-            if (name === "licenses") { syncLicense(r); logLicense(old, r); }
-            if (name === "company_updates") { syncUpdate(r); logUpdate(old, r); }
+            if (name === "tasks") { syncStatus(r); logChange(old, r); notifyAssign(old, r, "task"); }
+            if (name === "licenses") { syncLicense(r); logLicense(old, r); notifyAssign(old, r, "license"); }
+            if (name === "company_updates") { syncUpdate(r); logUpdate(old, r); notifyAssign(old, r, "update"); }
           });
           save();
         } else if (op === "delete") {

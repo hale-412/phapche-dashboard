@@ -39,6 +39,7 @@
     cur: null,
     sub: { reps: [], facilities: [], violations: [], inspections: [], adjustments: [], events: [] },
     tfilter: "all",
+    notifs: [],    // thông báo "được giao việc" của chính tôi
   };
 
   // ---------- Helpers ----------
@@ -129,6 +130,8 @@
   function showLogin() {
     $("#app").hidden = true; $("#view-login").hidden = false;
     state.me = null; state.tasks = []; state.profiles = [];
+    state.notifs = []; clearInterval(notifPoll);
+    $("#notif-panel").hidden = true; $("#notif-badge").hidden = true;
   }
 
   async function enterApp() {
@@ -143,6 +146,10 @@
     $("#view-login").hidden = true; $("#app").hidden = false;
     await loadAll();
     subscribeRealtime();
+    await loadNotifs();
+    // Dự phòng khi realtime bị mạng chặn: 60 giây dò lại thông báo một lần
+    clearInterval(notifPoll);
+    notifPoll = setInterval(loadNotifs, 60000);
     notifyBrowser();
   }
 
@@ -168,6 +175,7 @@
     fillCompanySelect();
     fillCompanyFilters();
     renderAll();
+    loadNotifs();     // chuông thông báo luôn khớp với dữ liệu vừa tải
   }
 
   // Supabase trả tối đa 1000 dòng/lần → tải theo trang (bảng doanh nghiệp có thể > 1000)
@@ -201,15 +209,165 @@
   // Thông báo trình duyệt khi có việc quá hạn / sắp đến hạn của tôi
   async function notifyBrowser() {
     if (!("Notification" in window)) return;
-    const my = allItems().filter((t) => mine(t) && (isOverdue(t) || isSoon(t)));
-    if (!my.length) return;
     if (Notification.permission === "default") await Notification.requestPermission();
     if (Notification.permission !== "granted") return;
+    const my = allItems().filter((t) => mine(t) && (isOverdue(t) || isSoon(t)));
+    if (!my.length) return;
     const od = my.filter(isOverdue).length;
     new Notification(CFG.DEPT_NAME, {
       body: `${od ? od + " việc quá hạn, " : ""}${my.length - od} việc sắp đến hạn của bạn.`,
-      icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>",
+      icon: APP_ICON,
     });
+  }
+
+  // ---------------------------------------------------------------
+  // Thông báo khi được phân / giao nhiệm vụ
+  //   Trigger notify_assignment trong Supabase ghi 1 dòng vào bảng
+  //   notifications cho đúng người được giao; realtime bắn về đây để
+  //   chuông sáng ngay, kèm thông báo của trình duyệt nếu được cho phép.
+  // ---------------------------------------------------------------
+  const NOTIF_LIMIT = 50;
+  let notifPoll;   // bộ hẹn dò lại thông báo (dự phòng khi realtime không tới)
+  const NOTIF_SRC = { task: "Văn bản / Công việc", license: "Hồ sơ doanh nghiệp", update: "Cập nhật TTDN" };
+  const APP_ICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>\u2696</text></svg>";
+
+  function nativeNotify(title, body) {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    try { new Notification(title, { body, icon: APP_ICON, tag: "phapche-assign" }); } catch (e) { /* trình duyệt chặn */ }
+  }
+
+  const unreadNotifs = () => state.notifs.filter((n) => !n.read_at);
+
+  function relTime(iso) {
+    const s = Math.max(0, (Date.now() - new Date(iso)) / 1000);
+    if (s < 60) return "vừa xong";
+    if (s < 3600) return `${Math.floor(s / 60)} phút trước`;
+    if (s < 86400) return `${Math.floor(s / 3600)} giờ trước`;
+    if (s < 7 * 86400) return `${Math.floor(s / 86400)} ngày trước`;
+    return fmtDateTime(iso);
+  }
+
+  // Kênh realtime riêng cho thông báo: nếu chưa chạy SQL mục 12 thì kênh này lỗi
+  // một mình, không kéo theo kênh "tasks-live" của toàn bộ dữ liệu.
+  let notifChannel;
+  function subscribeNotifs() {
+    if (notifChannel || !state.me) return;
+    notifChannel = state.sb.channel("notifs-live")
+      .on("postgres_changes",
+        { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${state.me.id}` },
+        (p) => onNotifInsert(p.new))
+      .subscribe();
+  }
+
+  async function loadNotifs() {
+    if (!state.me) return;
+    const { data, error } = await state.sb.from("notifications")
+      .select("*").eq("user_id", state.me.id)
+      .order("created_at", { ascending: false }).limit(NOTIF_LIMIT);
+    if (error) {
+      // Chưa chạy supabase/update-2026-11-09.sql thì ẩn chuông, phần còn lại của app vẫn chạy
+      console.warn("Không đọc được thông báo:", error.message);
+      $("#notif-btn").hidden = true;
+      return;
+    }
+    $("#notif-btn").hidden = false;
+    state.notifs = data || [];
+    subscribeNotifs();
+    renderNotifs();
+  }
+
+  function renderNotifs() {
+    const n = unreadNotifs().length;
+    const badge = $("#notif-badge");
+    badge.hidden = n === 0;
+    badge.textContent = n > 99 ? "99+" : n;
+    $("#notif-btn").classList.toggle("has-new", n > 0);
+    $("#notif-read-all").hidden = n === 0;
+    $("#notif-list").innerHTML = state.notifs.length
+      ? state.notifs.map(notifItem).join("")
+      : `<div class="notif-empty">Chưa có thông báo nào.</div>`;
+  }
+
+  function notifItem(x) {
+    const d = x.deadline ? Math.round((new Date(x.deadline) - new Date(todayISO())) / 86400000) : null;
+    const dueCls = d === null ? "" : d < 0 ? "due-crit" : d <= CFG.SOON_DAYS ? "due-warn" : "";
+    const dueTxt = d === null ? "" : `Hạn ${fmtDate(x.deadline)}${d < 0 ? ` · quá ${-d} ngày` : d === 0 ? " · hôm nay" : ` · còn ${d} ngày`}`;
+    return `<button type="button" class="notif-item ${x.read_at ? "" : "unread"}" data-nid="${x.id}">
+      <span class="nd"></span>
+      <span>
+        <span class="nt">${esc(x.title)}</span>
+        ${x.body ? `<div class="nb">${esc(x.body)}</div>` : ""}
+        <div class="nm">
+          <span>${esc(NOTIF_SRC[x.source] || x.source)}</span>
+          ${dueTxt ? `<span class="${dueCls}">${esc(dueTxt)}</span>` : ""}
+          ${x.actor_id ? `<span>${esc(nameOf(x.actor_id))} giao</span>` : ""}
+          <span>${esc(relTime(x.created_at))}</span>
+        </div>
+      </span>
+    </button>`;
+  }
+
+  function toggleNotifPanel(show) {
+    const p = $("#notif-panel");
+    const on = show === undefined ? p.hidden : show;
+    p.hidden = !on;
+    $("#notif-btn").setAttribute("aria-expanded", String(on));
+    if (on) renderNotifs();
+  }
+  const closeNotifPanel = () => toggleNotifPanel(false);
+
+  async function markNotifRead(list) {
+    const ids = list.filter((x) => !x.read_at).map((x) => x.id);
+    if (!ids.length) return;
+    const at = new Date().toISOString();
+    for (const id of ids) {
+      const { error } = await state.sb.from("notifications").update({ read_at: at }).eq("id", id);
+      if (error) { toast(error.message, true); return; }
+    }
+    state.notifs.forEach((x) => { if (ids.includes(x.id)) x.read_at = at; });
+    renderNotifs();
+  }
+
+  // Bấm vào thông báo: đánh dấu đã đọc rồi mở ngay việc được giao
+  async function openNotif(id) {
+    const x = state.notifs.find((n) => +n.id === +id);
+    if (!x) return;
+    closeNotifPanel();
+    await markNotifRead([x]);
+    if (!x.source_id) return;
+    if (x.source === "license") {
+      if (state.licenses.some((l) => +l.id === +x.source_id)) openLicense(+x.source_id);
+      else toast("Hồ sơ này không còn trong danh sách (đã xóa hoặc đã chuyển)", true);
+    } else if (x.source === "task") {
+      if (state.tasks.some((t) => +t.id === +x.source_id)) openTask(+x.source_id);
+      else toast("Văn bản này không còn trong danh sách (đã xóa hoặc đã chuyển)", true);
+    } else {
+      // Yêu cầu cập nhật TTDN không còn màn hình riêng → chỉ dẫn người dùng sang Profile doanh nghiệp
+      switchView("companies");
+      toast("Xem yêu cầu cập nhật trong hồ sơ doanh nghiệp tương ứng");
+    }
+  }
+
+  // Gộp nhiều thông báo đến liền nhau (vd. giao một lượt nhiều việc) thành 1 lời nhắc
+  let notifBurst = [], notifBurstTimer;
+  function onNotifInsert(row) {
+    if (!row || row.user_id !== state.me?.id) return;
+    if (state.notifs.some((n) => +n.id === +row.id)) return;
+    state.notifs.unshift(row);
+    state.notifs = state.notifs.slice(0, NOTIF_LIMIT);
+    renderNotifs();
+    notifBurst.push(row);
+    clearTimeout(notifBurstTimer);
+    notifBurstTimer = setTimeout(flushNotifBurst, 1500);
+  }
+
+  function flushNotifBurst() {
+    const list = notifBurst; notifBurst = [];
+    if (!list.length) return;
+    const title = list.length === 1 ? list[0].title : `Bạn được giao ${list.length} việc mới`;
+    const body = list.map((x) => x.body).filter(Boolean).slice(0, 5).join("\n");
+    toast("🔔 " + title);
+    nativeNotify(title, body);
   }
 
   // ---------- Render ----------
@@ -2158,6 +2316,15 @@
       toast(error ? error.message : "Đã gửi email đặt lại mật khẩu", !!error);
     });
     $("#logout-btn").addEventListener("click", () => state.sb.auth.signOut());
+    // Chuông thông báo được giao việc
+    $("#notif-btn").addEventListener("click", (e) => { e.stopPropagation(); toggleNotifPanel(); });
+    $("#notif-read-all").addEventListener("click", (e) => { e.stopPropagation(); markNotifRead(state.notifs); });
+    $("#notif-list").addEventListener("click", (e) => {
+      const b = e.target.closest(".notif-item[data-nid]");
+      if (b) openNotif(+b.dataset.nid);
+    });
+    document.addEventListener("click", (e) => { if (!e.target.closest(".notif-wrap")) closeNotifPanel(); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNotifPanel(); });
     $("#change-pass-btn").addEventListener("click", () => $("#pass-dialog").showModal());
     $("#pass-form").addEventListener("submit", async (e) => {
       e.preventDefault();

@@ -13,6 +13,7 @@ css/style.css       Giao diện (sáng/tối tự động)
 js/config.js        ⚠ Điền URL + anon key Supabase vào đây
 js/app.js           Logic ứng dụng
 supabase/schema.sql             Tạo bảng, phân quyền, trigger (chạy 1 lần)
+supabase/update-2026-11-09.sql  Thông báo khi được giao việc (mục 12, chạy thêm 1 lần)
 supabase/functions/daily-reminder/  Edge Function gửi email nhắc việc
 supabase/cron.sql               Lịch chạy email 7h30 sáng thứ 2-6
 ```
@@ -110,6 +111,13 @@ Mỗi sáng 7h30 (thứ 2-6), mỗi chuyên viên nhận email liệt kê việc
 |---|---|
 | **Trưởng phòng** | Thêm/sửa/xóa văn bản, đặt thời hạn, giao & điều chuyển phụ trách mức 1 ↔ mức 2 (nút ⇅), quản lý chuyên viên |
 | **Chuyên viên** | Xem toàn bộ, cập nhật tiến độ / trạng thái / ghi chú / kết quả của việc mình phụ trách (mức 1 hoặc mức 2) |
+
+> **Cập nhật 09/11/2026 — cần chạy thêm `supabase/update-2026-11-09.sql`** (hoặc chạy lại toàn bộ
+> `supabase/schema.sql`, mục **12**). Thêm **chuông thông báo 🔔** trên thanh trên cùng: mỗi khi Trưởng phòng
+> giao việc mới hoặc điều chuyển phụ trách (văn bản, hồ sơ doanh nghiệp, yêu cầu cập nhật TTDN), đúng người
+> được giao thấy ngay số thông báo chưa đọc, bấm vào là mở thẳng việc đó. Nếu trình duyệt được cho phép
+> hiện thông báo thì có thêm thông báo ngoài màn hình. Chưa chạy SQL này thì chuông tự ẩn, phần còn lại
+> của ứng dụng không ảnh hưởng.
 
 - **Tổng quan**: thẻ số liệu (bấm để lọc), việc cần chú ý, khối lượng việc theo chuyên viên, việc của tôi.
 - **Văn bản / Công việc**: tìm kiếm, lọc theo trạng thái / chuyên viên / thời hạn, sắp xếp theo cột, xuất CSV mở bằng Excel.
