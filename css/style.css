@@ -551,3 +551,24 @@ label > .was { margin-top: 4px; font-weight: 400; }
 @media (max-width: 700px) {
   .notif-panel { position: fixed; top: 56px; right: 8px; left: 8px; width: auto; }
 }
+
+/* ============ Ô ngày dd/mm/yyyy (js/datevn.js) ============ */
+/* Chọn qua ".vn-date > input" để thắng các rule riêng của .adv-row / .rp-custom */
+.vn-date { position: relative; display: inline-block; min-width: 0; }
+.vn-date > input.vn-date-txt { width: 100%; padding-right: 32px; }
+.vn-date > .vn-date-btn {
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  font-size: 13px; line-height: 1; opacity: .7; pointer-events: none;
+}
+/* Ô type="date" trong suốt nằm chồng lên nút lịch; nút lịch gốc của Chrome được kéo
+   kín ô nên bấm vào vùng đó là mở được bộ lịch của trình duyệt */
+.vn-date > input.vn-date-native {
+  position: absolute; right: 3px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; min-width: 0; padding: 0; margin: 0;
+  border: 0; background: transparent; opacity: 0; cursor: pointer;
+}
+.vn-date > input.vn-date-native::-webkit-calendar-picker-indicator { width: 100%; height: 100%; margin: 0; padding: 0; cursor: pointer; }
+.vn-date > input.vn-date-txt:disabled ~ .vn-date-btn,
+.vn-date > input.vn-date-txt:disabled ~ input.vn-date-native { display: none; }
+.vn-date > input.vn-date-txt:disabled { padding-right: 10px; }
+.vn-date > input.vn-date-txt.vn-bad { border-color: var(--critical-ink); }
