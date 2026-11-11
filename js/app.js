@@ -60,6 +60,8 @@
   // → các hàm dưới đây quy đổi tên cột khác nhau của 2 bảng về cùng một kiểu dữ liệu.
   const vDoc = (t) => (isLicense(t) ? t.file_number : t.doc_number);
   const vDate = (t) => (isLicense(t) ? t.doc_date || t.received_date : t.doc_date);
+  // Cột ngày trên bảng Văn bản / Công việc: ưu tiên ngày tiếp nhận, thiếu thì lùi về ngày văn bản
+  const vRecv = (t) => t.received_date || vDate(t);
   const vFrom = (t) => (isLicense(t) ? t.company_name : t.sender);
   const vCat = (t) => (isLicense(t) ? t.procedure : t.category);
   const vSub = (t) => (isLicense(t) ? t.update_item : [t.biz_type, t.update_item].filter(Boolean).join(" · "));
@@ -775,7 +777,7 @@
     const val = (t) => {
       if (key === "handler1" || key === "handler2") return nameOf(t[key]);
       if (key === "doc_number") return vDoc(t) ?? "";
-      if (key === "doc_date") return vDate(t) || "9999-99-99";
+      if (key === "recv_date") return vRecv(t) || "9999-99-99";
       if (key === "deadline") return t[key] || "9999-99-99";
       if (key === "status") return statusLabel(t);
       if (key === "progress") return vProgress(t);
@@ -798,7 +800,7 @@
       const cat = vCat(t), sub = vSub(t);
       return `<tr data-id="${t.id}" data-kind="${isLicense(t) ? "license" : "task"}" class="${rowCls}">
         <td class="nowrap mono">${esc(vDoc(t)) || "—"}${t.priority === "urgent" ? ' <span class="tag urgent">Khẩn</span>' : ""}</td>
-        <td class="nowrap mono">${fmtDate(vDate(t))}</td>
+        <td class="nowrap mono">${fmtDate(vRecv(t))}</td>
         <td class="content-cell">${esc(t.content || (isLicense(t) ? cat : ""))}<div class="sender">${isLicense(t) ? '<span class="tag license">Hồ sơ DN</span> ' : ""}${esc(vFrom(t) || "")}${cat && cat !== "Văn bản đến" ? " · " + esc(cat) : ""}${sub ? " · " + esc(sub) : ""}${t.tax_code ? " · MSDN " + esc(t.tax_code) : ""}</div></td>
         <td class="nowrap"><span class="mono">${fmtDate(t.deadline)}</span><br><span class="due ${d.cls}">${esc(d.text)}</span></td>
         <td>${esc(nameOf(t.handler1))}</td>
