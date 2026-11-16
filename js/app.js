@@ -594,6 +594,8 @@
   }
 
   const inRange = (t, r) => { const d = vIn(t); return !!d && d >= r.from && d <= r.to; };
+  // Ky mo dau / mo cuoi (chon "Tat ca", hoac khoang tu chon bo trong 1 dau) khong co ngay thuc de hien
+  const rpEdge = (iso, open) => (iso === "0000-01-01" || iso === "9999-12-31" ? open : fmtDate(iso));
 
   // Gom theo loại việc cụ thể, nhiều → ít
   function countByKind(list) {
@@ -612,9 +614,10 @@
     $("#rp-custom").hidden = r.key !== "custom";
     const lic = state.licenses.filter((x) => inRange(x, r));
     const doc = state.tasks.filter((x) => inRange(x, r));
+    const span = `${rpEdge(r.from, "đầu kỳ")} – ${rpEdge(r.to, "nay")}`;
     $("#rp-range-label").textContent = r.key === "all"
       ? "Kỳ báo cáo: toàn bộ dữ liệu · tính theo ngày nhận văn bản"
-      : `Kỳ báo cáo: ${r.label} (${fmtDate(r.from)} – ${fmtDate(r.to)}) · tính theo ngày nhận văn bản (bỏ trống thì lấy ngày văn bản)`;
+      : `Kỳ báo cáo: ${r.key === "custom" ? span : `${r.label} (${span})`} · tính theo ngày nhận văn bản (bỏ trống thì lấy ngày văn bản)`;
     $("#rp-incoming").innerHTML =
       rpPanel("📋 Hồ sơ doanh nghiệp", lic, "license") +
       rpPanel("📄 Văn bản hành chính", doc, "doc");
@@ -635,15 +638,21 @@
     </div>`;
   }
 
-  function renderReportStaff(r) {
+  // Bang "2. Theo chuyen vien" cua ky bao cao r — dung chung cho ca phan hien thi va phan xuat CSV,
+  // de file xuat ra luon dung ky dang chon (truoc day phan xuat lay lai so da ve tren man hinh)
+  function rpStaffRows(r) {
     const open = allItems().filter(isOpen);
     const got = allItems().filter((t) => inRange(t, r));
     const of = (list, id) => list.filter((t) => t.handler1 === id || t.handler2 === id);
-    const rows = state.profiles.filter((p) => p.active).map((p) => {
+    return state.profiles.filter((p) => p.active).map((p) => {
       const gi = of(got, p.id), oi = of(open, p.id);
       const split = (l) => ({ lic: l.filter(isLicense), doc: l.filter((t) => !isLicense(t)), total: l.length });
       return { p, got: split(gi), open: split(oi), overdue: oi.filter(isOverdue).length, soon: oi.filter(isSoon).length };
     }).sort((a, b) => b.got.total - a.got.total || b.open.total - a.open.total || a.p.full_name.localeCompare(b.p.full_name, "vi"));
+  }
+
+  function renderReportStaff(r) {
+    const rows = rpStaffRows(r);
     const sum = (f) => rows.reduce((a, x) => a + f(x), 0);
 
     const det = (label, list) => {
@@ -695,7 +704,6 @@
         <td class="num">${sum((x) => x.overdue)}</td>
         <td class="num">${sum((x) => x.soon)}</td>
       </tr></tfoot>`;
-    state.rpRows = rows;
   }
 
   function rpStaffClick(e) {
@@ -713,6 +721,13 @@
     else { applyFilter({ status: "open", handler: pid }); switchView("tasks"); }
   }
 
+  // Go ngay tu chon: cho ngung go mot nhip roi ve lai, tranh ve lai sau tung chu so
+  let rpDatesTimer = null;
+  function rpDatesChanged() {
+    clearTimeout(rpDatesTimer);
+    rpDatesTimer = setTimeout(renderReport, 250);
+  }
+
   function exportReportCSV() {
     const r = rpRange();
     const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -720,7 +735,7 @@
     const lic = state.licenses.filter((x) => inRange(x, r)), doc = state.tasks.filter((x) => inRange(x, r));
     const L = [
       line([`BÁO CÁO TỔNG HỢP — ${CFG.DEPT_NAME}`]),
-      line([`Kỳ báo cáo: ${r.label}`, `từ ${fmtDate(r.from)}`, `đến ${fmtDate(r.to)}`]),
+      line([`Kỳ báo cáo: ${r.label}`, `từ ${rpEdge(r.from, "đầu kỳ")}`, `đến ${rpEdge(r.to, "nay")}`]),
       "",
       line(["1. VĂN BẢN / HỒ SƠ ĐẾN PHÒNG TRONG KỲ"]),
       line(["Nhóm", "Loại việc cụ thể", "Số lượng", "Đang xử lý", "Đã kết thúc"]),
@@ -734,7 +749,7 @@
     });
     L.push("", line(["2. THEO CHUYÊN VIÊN"]));
     L.push(line(["Chuyên viên", "Nhóm", "Loại việc cụ thể", "Nhận trong kỳ", "Đang còn xử lý"]));
-    (state.rpRows || []).forEach((x) => {
+    rpStaffRows(r).forEach((x) => {
       L.push(line([x.p.full_name, "— Tổng —", "", x.got.total, `${x.open.total} (quá hạn ${x.overdue}, sắp đến hạn ${x.soon})`]));
       [["Hồ sơ doanh nghiệp", "lic"], ["Văn bản hành chính", "doc"]].forEach(([name, k]) => {
         L.push(line([x.p.full_name, name, "Tổng nhóm", x.got[k].length, x.open[k].length]));
@@ -2338,7 +2353,10 @@
 
     $$("#tabs button").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
     ["#f-search", "#f-status", "#f-handler", "#f-due"].forEach((s) => $(s).addEventListener("input", renderTasks));
-    ["#rp-range", "#rp-from", "#rp-to"].forEach((s) => $(s).addEventListener("change", renderReport));
+    $("#rp-range").addEventListener("change", renderReport);
+    // O ngay la o text dd/mm/yyyy: "change" chi ban khi roi o, nen nghe ca "input"
+    // de bao cao tren man hinh va file xuat ra luon khop voi ngay vua go
+    ["#rp-from", "#rp-to"].forEach((s) => ["change", "input"].forEach((ev) => $(s).addEventListener(ev, rpDatesChanged)));
     $("#rp-staff").addEventListener("click", rpStaffClick);
     $("#rp-export").addEventListener("click", exportReportCSV);
     $$("#tasks-table th[data-sort]").forEach((th) => th.addEventListener("click", () => {
