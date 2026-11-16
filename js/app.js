@@ -765,10 +765,23 @@
   }
 
   // ---- Bảng văn bản ----
+  // Mã số DN → tên viết tắt (chỉ bảng Doanh nghiệp có cột này). Dùng cho cả ô tìm kiếm
+  // và dòng phụ của bảng, nên tra sẵn một lượt thay vì tìm lại cho từng dòng.
+  function shortNameDir() {
+    const m = new Map();
+    state.companies.forEach((x) => {
+      const k = normTax(x.tax_code), n = (x.short_name || "").trim();
+      if (k && n && !m.has(k)) m.set(k, n);
+    });
+    return m;
+  }
+  const shortNameIn = (dir, t) => dir.get(normTax(t.tax_code)) || "";
+
   function filteredTasks() {
     const q = $("#f-search").value.trim().toLowerCase();
     const st = $("#f-status").value, h = $("#f-handler").value, due = $("#f-due").value;
     const today = todayISO(), ym = today.slice(0, 7);
+    const shortDir = q ? shortNameDir() : null;
     return allItems().filter((t) => {
       if (st === "kind:task") { if (isLicense(t)) return false; }
       else if (st === "kind:license") { if (!isLicense(t)) return false; }
@@ -782,7 +795,7 @@
         if (due === "7d" && !(d !== null && d >= 0 && d <= 7)) return false;
         if (due === "month" && !(t.deadline || "").startsWith(ym)) return false;
       }
-      if (q && !`${vDoc(t) || ""} ${t.content || ""} ${vFrom(t) || ""} ${t.tax_code || ""} ${vCat(t) || ""} ${vSub(t) || ""} ${t.license_number || ""} ${t.result || ""} ${nameOf(t.handler1)} ${nameOf(t.handler2)}`.toLowerCase().includes(q)) return false;
+      if (q && !`${vDoc(t) || ""} ${t.content || ""} ${vFrom(t) || ""} ${shortNameIn(shortDir, t)} ${t.tax_code || ""} ${vCat(t) || ""} ${vSub(t) || ""} ${t.license_number || ""} ${t.result || ""} ${nameOf(t.handler1)} ${nameOf(t.handler2)}`.toLowerCase().includes(q)) return false;
       return true;
     });
   }
@@ -807,16 +820,17 @@
 
   function renderTasks() {
     const list = sortTasks(filteredTasks());
+    const shortDir = shortNameDir();
     $("#tasks-empty").hidden = list.length > 0;
     $$("#tasks-table th[data-sort]").forEach((th) => { th.classList.toggle("sorted", th.dataset.sort === state.sort.key); th.classList.toggle("desc", state.sort.dir === "desc"); });
     $("#tasks-body").innerHTML = list.map((t) => {
       const d = dueLabel(t);
       const rowCls = isOverdue(t) ? "overdue" : isSoon(t) ? "soon" : "";
-      const cat = vCat(t), sub = vSub(t);
+      const cat = vCat(t), sub = vSub(t), short = shortNameIn(shortDir, t);
       return `<tr data-id="${t.id}" data-kind="${isLicense(t) ? "license" : "task"}" class="${rowCls}">
         <td class="nowrap mono">${esc(vDoc(t)) || "—"}${t.priority === "urgent" ? ' <span class="tag urgent">Khẩn</span>' : ""}</td>
         <td class="nowrap mono">${fmtDate(vRecv(t))}</td>
-        <td class="content-cell">${esc(t.content || (isLicense(t) ? cat : ""))}<div class="sender">${isLicense(t) ? '<span class="tag license">Hồ sơ DN</span> ' : ""}${esc(vFrom(t) || "")}${cat && cat !== "Văn bản đến" ? " · " + esc(cat) : ""}${sub ? " · " + esc(sub) : ""}${t.tax_code ? " · MSDN " + esc(t.tax_code) : ""}</div></td>
+        <td class="content-cell">${esc(t.content || (isLicense(t) ? cat : ""))}<div class="sender">${isLicense(t) ? '<span class="tag license">Hồ sơ DN</span> ' : ""}${esc(vFrom(t) || "")}${short ? ` <span class="abbr">(${esc(short)})</span>` : ""}${cat && cat !== "Văn bản đến" ? " · " + esc(cat) : ""}${sub ? " · " + esc(sub) : ""}${t.tax_code ? " · MSDN " + esc(t.tax_code) : ""}</div></td>
         <td class="nowrap"><span class="mono">${fmtDate(t.deadline)}</span><br><span class="due ${d.cls}">${esc(d.text)}</span></td>
         <td>${esc(nameOf(t.handler1))}</td>
         <td>${t.handler2 ? esc(nameOf(t.handler2)) : '<span class="muted">—</span>'}</td>
@@ -958,12 +972,13 @@
   function filteredLicenses() {
     const q = $("#l-search").value.trim().toLowerCase();
     const st = $("#l-status").value, pr = $("#l-procedure").value, h = $("#l-handler").value;
+    const shortDir = q ? shortNameDir() : null;
     return state.licenses.filter((l) => {
       if (st === "open" ? !isOpen(l) : st !== "all" && l.status !== st) return false;
       if (pr && (pr === LIC_OTHER ? PROCEDURES.includes(l.procedure) : l.procedure !== pr)) return false;
       if (h && l.handler1 !== h && l.handler2 !== h) return false;
       if (state.lDue === "overdue" && !isOverdue(l)) return false;
-      if (q && !`${l.file_number || ""} ${l.company_name} ${l.tax_code || ""} ${l.license_number || ""} ${l.procedure || ""} ${l.update_item || ""} ${l.content || ""} ${nameOf(l.handler1)} ${nameOf(l.handler2)}`.toLowerCase().includes(q)) return false;
+      if (q && !`${l.file_number || ""} ${l.company_name} ${shortNameIn(shortDir, l)} ${l.tax_code || ""} ${l.license_number || ""} ${l.procedure || ""} ${l.update_item || ""} ${l.content || ""} ${nameOf(l.handler1)} ${nameOf(l.handler2)}`.toLowerCase().includes(q)) return false;
       return true;
     });
   }
@@ -986,6 +1001,7 @@
 
   function renderLicenses() {
     const list = sortLicenses(filteredLicenses());
+    const shortDir = shortNameDir();
     $("#licenses-empty").hidden = list.length > 0;
     $$("#licenses-table th[data-sort]").forEach((th) => { th.classList.toggle("sorted", th.dataset.sort === state.lsort.key); th.classList.toggle("desc", state.lsort.dir === "desc"); });
     $("#licenses-body").innerHTML = list.map((l) => {
@@ -994,7 +1010,7 @@
       const rowCls = isOverdue(l) ? "overdue" : isSoon(l) ? "soon" : "";
       return `<tr data-id="${l.id}" class="${rowCls}">
         <td class="nowrap mono">${esc(l.file_number) || "—"}</td>
-        <td class="content-cell"><b>${esc(l.company_name)}</b>${l.content ? " — " + esc(l.content) : ""}<div class="sender">${l.tax_code ? "MSDN " + esc(l.tax_code) : ""}${l.update_item ? " · " + esc(l.update_item) : ""}${l.license_number ? " · GP số " + esc(l.license_number) + (l.issued_date ? " (" + fmtDate(l.issued_date) + ")" : "") : ""}</div></td>
+        <td class="content-cell"><b>${esc(l.company_name)}</b>${shortNameIn(shortDir, l) ? ` <span class="abbr">(${esc(shortNameIn(shortDir, l))})</span>` : ""}${l.content ? " — " + esc(l.content) : ""}<div class="sender">${l.tax_code ? "MSDN " + esc(l.tax_code) : ""}${l.update_item ? " · " + esc(l.update_item) : ""}${l.license_number ? " · GP số " + esc(l.license_number) + (l.issued_date ? " (" + fmtDate(l.issued_date) + ")" : "") : ""}</div></td>
         <td class="nowrap">${esc(l.procedure)}${l.priority === "urgent" ? ' <span class="tag urgent">Khẩn</span>' : ""}</td>
         <td class="nowrap mono">${fmtDate(l.received_date)}</td>
         <td class="nowrap"><span class="mono">${fmtDate(l.deadline)}</span><br><span class="due ${d.cls}">${esc(d.text)}</span></td>

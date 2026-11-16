@@ -578,3 +578,7 @@ label > .was { margin-top: 4px; font-weight: 400; }
 .vn-date > input.vn-date-txt:disabled ~ input.vn-date-native { display: none; }
 .vn-date > input.vn-date-txt:disabled { padding-right: 10px; }
 .vn-date > input.vn-date-txt.vn-bad { border-color: var(--critical-ink); }
+
+/* Tên viết tắt của doanh nghiệp, hiện cạnh tên đầy đủ ở bảng Văn bản/Công việc và Hồ sơ DN */
+.abbr { font-weight: 600; }
+.content-cell > .abbr { color: var(--muted); font-size: 12px; }
