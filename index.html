@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=44">
+<link rel="stylesheet" href="css/style.css?v=45">
 </head>
 <body>
 
@@ -50,9 +50,9 @@
         <div class="notif-panel" id="notif-panel" hidden>
           <div class="notif-head">
             <b>Thông báo</b>
-            <button type="button" class="btn link small" id="notif-summary">Xem tóm tắt</button>
             <button type="button" class="btn link small" id="notif-read-all">Đánh dấu đã đọc tất cả</button>
           </div>
+          <div class="notif-sum" id="notif-sum" hidden></div>
           <div class="notif-list" id="notif-list"></div>
           <div class="notif-foot muted small">Có thông báo khi bạn được giao hoặc được điều chuyển phụ trách một việc.</div>
         </div>
@@ -1052,34 +1052,13 @@
   </form>
 </dialog>
 
-<!-- ===== LỜI CHÀO KHI VÀO HỆ THỐNG: tóm tắt nhiệm vụ mới được giao ===== -->
-<dialog id="welcome-dialog" class="modal small">
-  <form id="welcome-form" method="dialog">
-    <div class="modal-head">
-      <h2 id="wc-title">Bạn có nhiệm vụ mới</h2>
-      <button type="button" class="btn ghost" data-close>✕</button>
-    </div>
-    <div class="modal-body">
-      <div id="wc-sum" class="wc-sum"></div>
-      <div id="wc-groups" class="wc-groups"></div>
-      <p class="muted small">Bấm vào một việc để mở ngay · các thông báo này vẫn nằm ở chuông 🔔 trên thanh trên cùng.</p>
-    </div>
-    <div class="modal-foot">
-      <button type="button" class="btn ghost" id="wc-read">Đánh dấu đã đọc</button>
-      <div class="spacer"></div>
-      <button type="button" class="btn" data-close>Để sau</button>
-      <button type="button" class="btn primary" id="wc-go">Xem việc của tôi ›</button>
-    </div>
-  </form>
-</dialog>
-
 <div id="toast" class="toast" hidden></div>
 
 <script src="vendor/supabase-2.117.1.min.js"></script>
 <script src="js/config.js?v=36"></script>
 <script src="js/docread.js?v=14"></script>
 <script src="js/datevn.js?v=2"></script>
-<script src="js/app.js?v=50"></script>
+<script src="js/app.js?v=51"></script>
 <script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
 </body>
 </html>

@@ -583,33 +583,14 @@ label > .was { margin-top: 4px; font-weight: 400; }
 .abbr { font-weight: 600; }
 .content-cell > .abbr { color: var(--muted); font-size: 12px; }
 
-/* ===== Lời chào khi vào hệ thống: tóm tắt nhiệm vụ mới được giao ===== */
-.wc-sum { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
-.wc-chip {
-  display: inline-flex; align-items: center; gap: 6px;
-  border: 1px solid var(--line-2); border-radius: 99px; padding: 4px 11px; font-size: 13px;
+/* ===== Tóm tắt ngay dưới chuông thông báo ===== */
+.notif-sum { padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.ns-head { font-weight: 600; margin-bottom: 6px; }
+.ns-row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; margin-top: 5px; }
+.ns-chip {
+  display: inline-flex; align-items: center; gap: 5px; white-space: nowrap;
+  border: 1px solid var(--line-2); border-radius: 99px; padding: 2px 9px; font-size: 12px;
 }
-.wc-chip b { font-size: 15px; }
-.wc-chip.license { border-color: var(--series-2); color: var(--series-2); }
-.wc-chip.task { border-color: var(--primary); color: var(--primary); }
-.wc-chip.note { border-style: dashed; color: var(--muted); }
-.wc-groups { display: flex; flex-direction: column; gap: 12px; }
-.wc-group { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--surface-2); }
-.wc-g-head { font-weight: 600; }
-.wc-kinds { display: flex; flex-wrap: wrap; gap: 6px; margin: 7px 0 2px; }
-.wc-kind {
-  background: var(--surface); border: 1px solid var(--line); border-radius: 7px;
-  padding: 2px 8px; font-size: 12px; color: var(--ink-2);
-}
-.wc-items { list-style: none; margin: 6px 0 0; padding: 0; }
-.wc-items > li { border-top: 1px solid var(--line); }
-.wc-items > li.muted { padding: 6px 2px; }
-.wc-item {
-  display: block; width: 100%; text-align: left; background: none; border: 0;
-  padding: 7px 2px; cursor: pointer; color: inherit; font: inherit;
-}
-.wc-item:hover .wc-i-main { text-decoration: underline; }
-.wc-i-main { display: block; }
-.wc-i-meta { display: flex; gap: 8px; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin-top: 2px; }
-.wc-i-meta .due-warn { color: var(--warning-ink); font-weight: 600; }
-.wc-i-meta .due-crit { color: var(--critical-ink); font-weight: 600; }
+.ns-chip.license { border-color: var(--series-2); color: var(--series-2); }
+.ns-chip.task { border-color: var(--primary); color: var(--primary); }
+.ns-kinds { color: var(--ink-2); font-size: 12px; }

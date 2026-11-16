@@ -132,7 +132,7 @@
   function showLogin() {
     $("#app").hidden = true; $("#view-login").hidden = false;
     state.me = null; state.tasks = []; state.profiles = [];
-    state.notifs = []; wcList = []; clearInterval(notifPoll);
+    state.notifs = []; clearInterval(notifPoll);
     $("#notif-panel").hidden = true; $("#notif-badge").hidden = true;
   }
 
@@ -149,7 +149,7 @@
     await loadAll();
     subscribeRealtime();
     await loadNotifs();
-    showWelcomeNotice();
+    dropNotifPanel();
     // Dự phòng khi realtime bị mạng chặn: 60 giây dò lại thông báo một lần
     clearInterval(notifPoll);
     notifPoll = setInterval(loadNotifs, 60000);
@@ -272,10 +272,10 @@
       // Chưa chạy supabase/update-2026-11-09.sql thì ẩn chuông, phần còn lại của app vẫn chạy
       console.warn("Không đọc được thông báo:", error.message);
       $("#notif-btn").hidden = true;
-      // Nói rõ một lần cho Trưởng phòng biết vì sao không có thông báo nào, thay vì im lặng
-      if (isLead() && !notifWarned) {
+      // Nói rõ một lần vì sao không có thông báo nào, thay vì im lặng
+      if (!notifWarned) {
         notifWarned = true;
-        toast("Chưa bật thông báo giao việc: chạy file supabase/update-2026-11-09.sql trong SQL Editor của Supabase", true);
+        toast("Chưa bật thông báo giao việc trên máy chủ (cần chạy supabase/update-2026-11-09.sql)", true);
       }
       return;
     }
@@ -295,6 +295,7 @@
     $("#notif-list").innerHTML = state.notifs.length
       ? state.notifs.map(notifItem).join("")
       : `<div class="notif-empty">Chưa có thông báo nào.</div>`;
+    renderNotifSummary();
   }
 
   // Hạn xử lý của một thông báo, dùng chung cho chuông và cho lời chào khi vào hệ thống
@@ -388,18 +389,20 @@
   }
 
   // ---------------------------------------------------------------
-  // Lời chào khi vào hệ thống: tóm tắt những nhiệm vụ mới được giao
-  //   Chuông 🔔 chỉ sáng khi người dùng đang mở máy; ai vừa đăng nhập thì
-  //   cần thấy ngay "được giao bao nhiêu việc mới, là hồ sơ DN hay văn bản
-  //   hành chính, thuộc loại việc gì" mà không phải tự mở chuông ra đọc.
+  // Tóm tắt ngay dưới chuông: vào hệ thống là thấy mình có gì mới
+  //   Bảng thông báo tự thả xuống một lần mỗi phiên khi có việc chưa đọc,
+  //   phía trên danh sách là một dòng tóm tắt: bao nhiêu việc, là hồ sơ DN
+  //   hay văn bản hành chính, thuộc loại việc gì. Ai cũng như nhau, không
+  //   phân biệt Trưởng phòng hay chuyên viên.
   // ---------------------------------------------------------------
-  const WC_GROUPS = [
-    { src: "license", icon: "📋", label: "Hồ sơ doanh nghiệp" },
-    { src: "task",    icon: "📄", label: "Văn bản hành chính" },
-    { src: "update",  icon: "🏢", label: "Cập nhật thông tin DN" },
+  const NS_GROUPS = [
+    { src: "license", icon: "📋", label: "Hồ sơ DN" },
+    { src: "task",    icon: "📄", label: "Văn bản HC" },
+    { src: "update",  icon: "🏢", label: "Cập nhật TTDN" },
   ];
-  const WC_MAX = 5;                       // liệt kê tối đa 5 việc mỗi nhóm, còn lại xem ở chuông
-  let wcList = [];                        // những thông báo đang hiện trong lời chào
+  // Thông báo đưa vào tóm tắt: được giao mới, được điều chuyển, và nhắc việc tồn
+  const NS_KINDS = ["assign", "reassign", "reminder"];
+  const nsItems = () => unreadNotifs().filter((n) => NS_KINDS.includes(n.kind));
 
   // Loại việc cụ thể của một thông báo: tra lại trong dữ liệu đã tải
   // (hồ sơ DN → thủ tục cấp mới / cấp đổi…, văn bản → loại việc báo cáo / thẩm định…)
@@ -410,51 +413,41 @@
     return n.source === "update" ? (it.update_type || "") : vKindLabel(it);
   }
 
-  // force = người dùng tự bấm "Xem tóm tắt" trong chuông → luôn hiện, kể cả đã chào trong phiên này
-  function showWelcomeNotice(force) {
-    wcList = unreadNotifs().filter((n) => n.kind === "assign" || n.kind === "reassign");
-    if (!wcList.length) {
-      if (force) toast($("#notif-btn").hidden
-        ? "Chức năng thông báo chưa bật trên máy chủ (xem supabase/update-2026-11-09.sql)"
-        : "Hiện không có nhiệm vụ mới nào chưa đọc");
-      return;
-    }
-    // Mỗi phiên trình duyệt chỉ chào một lần cho cùng một mớ thông báo; có thông báo mới hơn thì chào lại
-    const newest = wcList.reduce((m, n) => Math.max(m, +n.id), 0);
-    const key = `phapche_welcome_${state.me.id}`;
-    try {
-      if (!force && +(sessionStorage.getItem(key) || 0) >= newest) return;
-      sessionStorage.setItem(key, String(newest));
-    } catch (e) { /* trình duyệt chặn sessionStorage → cứ chào */ }
-
-    const groups = WC_GROUPS.map((g) => {
-      const items = wcList.filter((n) => n.source === g.src);
+  function renderNotifSummary() {
+    const list = nsItems();
+    const box = $("#notif-sum");
+    box.hidden = !list.length;
+    if (!list.length) return;
+    const nNew = list.filter((n) => n.kind !== "reminder").length;
+    const nRem = list.length - nNew;
+    const head = nNew && nRem ? `${nNew} nhiệm vụ mới · ${nRem} việc đến hạn`
+      : nNew ? `Bạn được giao ${nNew} nhiệm vụ mới`
+      : `${nRem} việc đang phụ trách đã đến hạn`;
+    const groups = NS_GROUPS.map((g) => {
+      const items = list.filter((n) => n.source === g.src);
       const m = new Map();
-      items.forEach((n) => { const k = notifKind(n) || "Chưa ghi loại"; m.set(k, (m.get(k) || 0) + 1); });
+      items.forEach((n) => { const k = notifKind(n) || "chưa ghi loại"; m.set(k, (m.get(k) || 0) + 1); });
       return { ...g, items, kinds: [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "vi")) };
     }).filter((g) => g.items.length);
+    box.innerHTML = `<div class="ns-head">${esc(head)}</div>`
+      + groups.map((g) => `<div class="ns-row">
+          <span class="ns-chip ${g.src}">${g.icon} ${esc(g.label)} <b>${g.items.length}</b></span>
+          <span class="ns-kinds">${g.kinds.map(([k, n]) => `${esc(k)} <b>${n}</b>`).join(" · ")}</span>
+        </div>`).join("");
+  }
 
-    const re = wcList.filter((n) => n.kind === "reassign").length;
-    $("#wc-title").textContent = `Bạn được giao ${wcList.length} nhiệm vụ mới`;
-    $("#wc-sum").innerHTML = groups.map((g) =>
-      `<span class="wc-chip ${g.src}">${g.icon} ${esc(g.label)} <b>${g.items.length}</b></span>`).join("")
-      + (re ? `<span class="wc-chip note">${re} việc được điều chuyển sang bạn</span>` : "");
-    $("#wc-groups").innerHTML = groups.map((g) => `
-      <div class="wc-group">
-        <div class="wc-g-head">${g.icon} ${esc(g.label)} · <b>${g.items.length}</b> việc</div>
-        <div class="wc-kinds">${g.kinds.map(([k, n]) => `<span class="wc-kind">${esc(k)} <b>${n}</b></span>`).join("")}</div>
-        <ul class="wc-items">
-          ${g.items.slice(0, WC_MAX).map((n) => {
-            const due = notifDue(n);
-            return `<li><button type="button" class="wc-item" data-nid="${n.id}">
-              <span class="wc-i-main">${esc(n.body || n.title)}</span>
-              <span class="wc-i-meta">${due.text ? `<span class="${due.cls}">${esc(due.text)}</span>` : ""}${n.actor_id ? `<span>${esc(nameOf(n.actor_id))} giao</span>` : ""}</span>
-            </button></li>`;
-          }).join("")}
-          ${g.items.length > WC_MAX ? `<li class="muted small">… và ${g.items.length - WC_MAX} việc khác, xem ở chuông 🔔</li>` : ""}
-        </ul>
-      </div>`).join("");
-    $("#welcome-dialog").showModal();
+  // Vào hệ thống: tự thả bảng thông báo xuống nếu có việc chưa đọc.
+  // Mỗi phiên trình duyệt chỉ tự mở một lần cho cùng một mớ thông báo; có cái mới hơn thì mở lại.
+  function dropNotifPanel() {
+    const list = nsItems();
+    if (!list.length) return;
+    const newest = list.reduce((m, n) => Math.max(m, +n.id), 0);
+    const key = `phapche_notifdrop_${state.me.id}`;
+    try {
+      if (+(sessionStorage.getItem(key) || 0) >= newest) return;
+      sessionStorage.setItem(key, String(newest));
+    } catch (e) { /* trình duyệt chặn sessionStorage → cứ mở */ }
+    toggleNotifPanel(true);
   }
 
   // ---------- Render ----------
@@ -2603,19 +2596,6 @@
     $("#staff-form").addEventListener("submit", saveStaff);
 
     $$("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
-    $("#notif-summary").addEventListener("click", () => { closeNotifPanel(); showWelcomeNotice(true); });
-    $("#wc-go").addEventListener("click", () => {
-      $("#welcome-dialog").close();
-      applyFilter({ status: "open", handler: state.me.id });
-      switchView("tasks");
-    });
-    $("#wc-read").addEventListener("click", async () => { await markNotifRead(wcList); $("#welcome-dialog").close(); });
-    $("#wc-groups").addEventListener("click", (e) => {
-      const b = e.target.closest(".wc-item");
-      if (!b) return;
-      $("#welcome-dialog").close();
-      openNotif(+b.dataset.nid);
-    });
   }
 
   // =================================================================
