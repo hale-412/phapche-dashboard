@@ -64,7 +64,7 @@ window.BIZ_TASK_TYPES = [
   "Đề nghị khác",   // chọn mục này → hiện ô nhập nội dung tự do (lưu thắng vào tasks.biz_type)
 ];
 
-// Sau khi hồ sơ DN chuyển sang "Đã cấp phép / Hoàn thành" → hỏi cần cập nhật
+// Sau khi hồ sơ DN kết thúc ("Đã cấp phép" / "Đã có văn bản gửi DN") → hỏi cần cập nhật
 // những phần nào trong Profile doanh nghiệp. `pane` khớp với data-pane của tab
 // trong hồ sơ DN, bấm vào thẻ / mục nào sẽ mở thẳng đúng tab đó để cập nhật.
 // `icon` chỉ để hiển thị cho dễ nhìn, `hint` là dòng mô tả ngắn dưới nhãn.
