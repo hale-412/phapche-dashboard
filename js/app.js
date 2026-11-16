@@ -2172,11 +2172,12 @@
     }
   }
 
-  async function openTask(id) {
-    const t = id ? state.tasks.find((x) => x.id === id) : null;
+  // draft = thông tin điền sẵn cho văn bản MỚI (nút "Duplicate và Lưu"), không phải văn bản đã có
+  async function openTask(id, draft) {
+    const t = id ? state.tasks.find((x) => x.id === id) : (draft || null);
     const dlg = $("#task-dialog");
-    resetDocRead(!t);            // ô "Tải văn bản lên để tự điền" chỉ dùng khi thêm mới
-    $("#task-dialog-title").textContent = t ? `Văn bản ${t.doc_number || "#" + t.id}` : "Thêm văn bản / công việc";
+    resetDocRead(!id);           // ô "Tải văn bản lên để tự điền" chỉ dùng khi thêm mới
+    $("#task-dialog-title").textContent = id ? `Văn bản ${t.doc_number || "#" + t.id}` : "Thêm văn bản / công việc";
     $("#t-id").value = t?.id || "";
     $("#t-doc_number").value = t?.doc_number || "";
     $("#t-doc_date").value = t?.doc_date || "";
@@ -2207,14 +2208,14 @@
     $("#t-result").value = t?.result || "";
 
     const canEditAll = isLead();
-    const canEditProgress = canEditAll || (t && mine(t));
+    const canEditProgress = canEditAll || (id && mine(t));
     $$(".lead-field", dlg).forEach((el) => (el.disabled = !canEditAll));
     ["#t-status", "#t-progress", "#t-progress_note", "#t-result"].forEach((s) => ($(s).disabled = !canEditProgress));
     $("#save-task-btn").hidden = !canEditProgress;
-    $("#delete-task-btn").hidden = !(canEditAll && t);
+    $("#delete-task-btn").hidden = !(canEditAll && id);
 
-    $("#task-history").hidden = !t;
-    if (t) {
+    $("#task-history").hidden = !id;
+    if (id) {
       $("#history-list").innerHTML = `<li class="muted">Đang tải…</li>`;
       const { data } = await state.sb.from("task_logs").select("*").eq("task_id", t.id).order("created_at", { ascending: false });
       $("#history-list").innerHTML = (data || []).map((l) => `<li><span class="when">${fmtDateTime(l.created_at)}</span><span><span class="who">${esc(nameOf(l.user_id))}</span> · ${ACTION[l.action] || l.action}: ${esc(prettyLog(l.detail))}</span></li>`).join("") || `<li class="muted">Chưa có</li>`;
@@ -2331,8 +2332,12 @@
     return make(p);
   }
 
+  // Bấm "Duplicate và Lưu" → requestSubmit() để form vẫn kiểm tra ô bắt buộc
+  let taskDup = false;
+
   async function saveTask(e) {
     e.preventDefault();
+    const dup = taskDup; taskDup = false;
     const id = $("#t-id").value;
     const payload = {
       status: $("#t-status").value,
@@ -2362,9 +2367,17 @@
       id ? state.sb.from("tasks").update(p).eq("id", id) : state.sb.from("tasks").insert(p));
     $("#save-task-btn").disabled = false;
     if (error) { toast(error.message, true); return; }
-    toast(id ? "Đã lưu" : "Đã thêm văn bản");
     $("#task-dialog").close();
     await loadAll();
+    if (dup) {
+      // Mở ngay văn bản mới, giữ nguyên thông tin vừa nhập; bỏ những gì chỉ thuộc văn bản vừa lưu
+      await openTask(null, {
+        ...payload, id: null, doc_number: "", progress: 0, progress_note: null, result: null,
+      });
+      toast("Đã lưu — giữ thông tin cho văn bản tiếp theo, chỉ cần sửa số văn bản và trích yếu");
+      return;
+    }
+    toast(id ? "Đã lưu" : "Đã thêm văn bản");
   }
 
   async function deleteTask() {
@@ -2584,6 +2597,7 @@
     $("#imp-sheet").addEventListener("change", loadSheet);
     $("#imp-status").addEventListener("change", buildPreview);
     $("#imp-run-btn").addEventListener("click", runImport);
+    $("#dup-task-btn").addEventListener("click", () => { taskDup = true; $("#task-form").requestSubmit(); });
     $("#add-task-btn").addEventListener("click", () => openTask(null));
     $("#import-tasks-btn").addEventListener("click", () => openImport("tasks"));
     $("#quick-add-task").addEventListener("click", () => openTask(null));
