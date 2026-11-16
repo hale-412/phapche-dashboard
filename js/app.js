@@ -1100,10 +1100,11 @@
     }).join("");
   }
 
-  async function openLicense(id) {
-    const l = id ? state.licenses.find((x) => x.id === id) : null;
+  // draft = thông tin điền sẵn cho hồ sơ MỚI (nút "Duplicate và Lưu"), không phải hồ sơ đã có
+  async function openLicense(id, draft) {
+    const l = id ? state.licenses.find((x) => x.id === id) : (draft || null);
     const dlg = $("#license-dialog");
-    $("#license-dialog-title").textContent = l ? `Hồ sơ ${l.file_number || "#" + l.id} – ${l.company_name}` : "Tiếp nhận hồ sơ doanh nghiệp";
+    $("#license-dialog-title").textContent = id ? `Hồ sơ ${l.file_number || "#" + l.id} – ${l.company_name}` : "Tiếp nhận hồ sơ doanh nghiệp";
     $("#l-id").value = l?.id || "";
     $("#l-company_name").value = l?.company_name || "";
     $("#l-tax_code").value = l?.tax_code || "";
@@ -1134,30 +1135,30 @@
     $("#l-note").value = l?.note || "";
 
     const canEditAll = isLead();
-    const canEditStatus = canEditAll || (l && mine(l));
+    const canEditStatus = canEditAll || (id && mine(l));
     $$(".lead-field", dlg).forEach((el) => (el.disabled = !canEditAll));
     ["#l-status-f", "#l-license_number", "#l-issued_date", "#l-note", "#l-progress", "#l-result"].forEach((s) => ($(s).disabled = !canEditStatus));
     $("#save-license-btn").hidden = !canEditStatus;
-    $("#delete-license-btn").hidden = !(canEditAll && l);
+    $("#delete-license-btn").hidden = !(canEditAll && id);
 
     // Khung nhắc cập nhật Profile DN: hiện cả khi chưa chọn phần nào, để lỡ
     // đóng hộp thoại nhắc việc thì vẫn mở lại được chứ không mất hẳn lời nhắc.
     const ptBox = $("#l-profile-todo");
-    ptBox.hidden = !(l && (needProfileUpdate(l) || ptPending(l)));
-    if (l && needProfileUpdate(l)) {
+    ptBox.hidden = !(id && (needProfileUpdate(l) || ptPending(l)));
+    if (id && needProfileUpdate(l)) {
       ptBox.innerHTML = `<b>Chưa cập nhật Profile doanh nghiệp.</b> Bấm vào phần cần cập nhật:`
         + `<div class="pt-chips">${ptChips(l)}</div>`
         + (l.profile_note ? `<div class="muted">${esc(l.profile_note)}</div>` : "")
         + `<div class="pt-acts"><button type="button" class="btn biz small" data-pt="go">Mở Profile doanh nghiệp ›</button>`
         + `<button type="button" class="btn small" data-pt="pick">Chọn lại phần cần cập nhật</button>`
         + `<button type="button" class="btn small" data-pt="done">✓ Đã cập nhật xong</button></div>`;
-    } else if (l && ptPending(l)) {
+    } else if (id && ptPending(l)) {
       ptBox.innerHTML = `<b>Hồ sơ đã hoàn thành — chưa ghi phần nào cần cập nhật Profile doanh nghiệp.</b>`
         + `<div class="pt-acts"><button type="button" class="btn biz small" data-pt="pick">Chọn phần cần cập nhật ›</button>`
         + `<button type="button" class="btn small" data-pt="done">Không cần cập nhật</button></div>`;
     }
-    $("#license-history").hidden = !l;
-    if (l) {
+    $("#license-history").hidden = !id;
+    if (id) {
       $("#license-history-list").innerHTML = `<li class="muted">Đang tải…</li>`;
       const { data } = await state.sb.from("license_logs").select("*").eq("license_id", l.id).order("created_at", { ascending: false });
       $("#license-history-list").innerHTML = (data || []).map((g) => `<li><span class="when">${fmtDateTime(g.created_at)}</span><span><span class="who">${esc(nameOf(g.user_id))}</span> · ${ACTION[g.action] || g.action}: ${esc(prettyLog(g.detail))}</span></li>`).join("") || `<li class="muted">Chưa có</li>`;
@@ -1165,8 +1166,12 @@
     dlg.showModal();
   }
 
+  // Bấm "Duplicate và Lưu" → requestSubmit() để form vẫn kiểm tra ô bắt buộc, cờ này cho saveLicense biết
+  let licDup = false;
+
   async function saveLicense(e) {
     e.preventDefault();
+    const dup = licDup; licDup = false;
     const id = $("#l-id").value;
     const before = id ? state.licenses.find((x) => +x.id === +id) : null;
     const wasFinal = !!(before && LSTAT_MAP[before.status]?.final);
@@ -1205,6 +1210,15 @@
       : (id ? "Đã lưu hồ sơ" : "Đã tiếp nhận hồ sơ"));
     $("#license-dialog").close();
     await loadAll();
+    if (dup) {
+      // Mở ngay hồ sơ mới, giữ nguyên thông tin vừa nhập; bỏ những gì chỉ thuộc hồ sơ vừa lưu
+      await openLicense(null, {
+        ...payload, id: null, file_number: "", license_number: null, issued_date: null,
+        note: null, result: null, progress: 0,
+      });
+      toast("Đã lưu — giữ thông tin cho hồ sơ tiếp theo, chỉ cần sửa số hồ sơ và nội dung");
+      return;
+    }
     // Vừa chuyển sang trạng thái kết thúc → nhắc cập nhật Profile doanh nghiệp
     if (nowFinal && !wasFinal && !["rejected", "withdrawn", "cancelled"].includes(payload.status)) {
       const fresh = state.licenses.find((x) => (id ? +x.id === +id : x.file_number === payload.file_number && x.company_name === payload.company_name));
@@ -2479,6 +2493,7 @@
       renderLicenses();
     }));
     $("#licenses-body").addEventListener("click", (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) openLicense(+tr.dataset.id); });
+    $("#dup-license-btn").addEventListener("click", () => { licDup = true; $("#license-form").requestSubmit(); });
     $("#add-license-btn").addEventListener("click", () => openLicense(null));
     $("#add-biz-btn").addEventListener("click", () => openLicense(null));
     $("#l-procedure-f").addEventListener("change", syncLicenseFields);
