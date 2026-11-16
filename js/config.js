@@ -27,7 +27,10 @@ window.LICENSE_STATUSES = [
   { value: "submit_dept", label: "Trình Phòng",            cls: "submit1" },
   { value: "submitted",   label: "Trình Lãnh đạo Cục",   cls: "submit2" },
   { value: "submit_bo",   label: "Trình Lãnh đạo Bộ",    cls: "submit3" },
-  { value: "issued",      label: "Đã cấp phép / Hoàn thành", cls: "done", final: true },
+  { value: "issued",      label: "Đã cấp phép",          cls: "done", final: true },
+  // Hồ sơ kết thúc bằng văn bản trả lời doanh nghiệp (không cấp giấy phép mới):
+  // thu hồi, nộp lại GP, trả lời điều chỉnh, hướng dẫn bổ sung lần cuối…
+  { value: "answered",    label: "Đã có văn bản gửi DN", cls: "done", final: true },
   { value: "rejected",    label: "Từ chối",              cls: "cancelled", final: true },
   { value: "withdrawn",   label: "Rút hồ sơ",            cls: "cancelled", final: true },
   { value: "cancelled",   label: "Hủy",                  cls: "cancelled", final: true },
