@@ -132,7 +132,7 @@
   function showLogin() {
     $("#app").hidden = true; $("#view-login").hidden = false;
     state.me = null; state.tasks = []; state.profiles = [];
-    state.notifs = []; clearInterval(notifPoll);
+    state.notifs = []; wcList = []; clearInterval(notifPoll);
     $("#notif-panel").hidden = true; $("#notif-badge").hidden = true;
   }
 
@@ -149,6 +149,7 @@
     await loadAll();
     subscribeRealtime();
     await loadNotifs();
+    showWelcomeNotice();
     // Dự phòng khi realtime bị mạng chặn: 60 giây dò lại thông báo một lần
     clearInterval(notifPoll);
     notifPoll = setInterval(loadNotifs, 60000);
@@ -290,10 +291,18 @@
       : `<div class="notif-empty">Chưa có thông báo nào.</div>`;
   }
 
-  function notifItem(x) {
+  // Hạn xử lý của một thông báo, dùng chung cho chuông và cho lời chào khi vào hệ thống
+  function notifDue(x) {
     const d = x.deadline ? Math.round((new Date(x.deadline) - new Date(todayISO())) / 86400000) : null;
-    const dueCls = d === null ? "" : d < 0 ? "due-crit" : d <= CFG.SOON_DAYS ? "due-warn" : "";
-    const dueTxt = d === null ? "" : `Hạn ${fmtDate(x.deadline)}${d < 0 ? ` · quá ${-d} ngày` : d === 0 ? " · hôm nay" : ` · còn ${d} ngày`}`;
+    if (d === null) return { cls: "", text: "" };
+    return {
+      cls: d < 0 ? "due-crit" : d <= CFG.SOON_DAYS ? "due-warn" : "",
+      text: `Hạn ${fmtDate(x.deadline)}${d < 0 ? ` · quá ${-d} ngày` : d === 0 ? " · hôm nay" : ` · còn ${d} ngày`}`,
+    };
+  }
+
+  function notifItem(x) {
+    const { cls: dueCls, text: dueTxt } = notifDue(x);
     return `<button type="button" class="notif-item ${x.read_at ? "" : "unread"}" data-nid="${x.id}">
       <span class="nd"></span>
       <span>
@@ -370,6 +379,70 @@
     const body = list.map((x) => x.body).filter(Boolean).slice(0, 5).join("\n");
     toast("🔔 " + title);
     nativeNotify(title, body);
+  }
+
+  // ---------------------------------------------------------------
+  // Lời chào khi vào hệ thống: tóm tắt những nhiệm vụ mới được giao
+  //   Chuông 🔔 chỉ sáng khi người dùng đang mở máy; ai vừa đăng nhập thì
+  //   cần thấy ngay "được giao bao nhiêu việc mới, là hồ sơ DN hay văn bản
+  //   hành chính, thuộc loại việc gì" mà không phải tự mở chuông ra đọc.
+  // ---------------------------------------------------------------
+  const WC_GROUPS = [
+    { src: "license", icon: "📋", label: "Hồ sơ doanh nghiệp" },
+    { src: "task",    icon: "📄", label: "Văn bản hành chính" },
+    { src: "update",  icon: "🏢", label: "Cập nhật thông tin DN" },
+  ];
+  const WC_MAX = 5;                       // liệt kê tối đa 5 việc mỗi nhóm, còn lại xem ở chuông
+  let wcList = [];                        // những thông báo đang hiện trong lời chào
+
+  // Loại việc cụ thể của một thông báo: tra lại trong dữ liệu đã tải
+  // (hồ sơ DN → thủ tục cấp mới / cấp đổi…, văn bản → loại việc báo cáo / thẩm định…)
+  function notifKind(n) {
+    const pool = n.source === "license" ? state.licenses : n.source === "task" ? state.tasks : state.updates;
+    const it = (pool || []).find((x) => +x.id === +n.source_id);
+    if (!it) return "";                   // việc đã xóa, hoặc đã chuyển cho người khác nên không còn đọc được
+    return n.source === "update" ? (it.update_type || "") : vKindLabel(it);
+  }
+
+  function showWelcomeNotice() {
+    wcList = unreadNotifs().filter((n) => n.kind === "assign" || n.kind === "reassign");
+    if (!wcList.length) return;
+    // Mỗi phiên trình duyệt chỉ chào một lần cho cùng một mớ thông báo; có thông báo mới hơn thì chào lại
+    const newest = wcList.reduce((m, n) => Math.max(m, +n.id), 0);
+    const key = `phapche_welcome_${state.me.id}`;
+    try {
+      if (+(sessionStorage.getItem(key) || 0) >= newest) return;
+      sessionStorage.setItem(key, String(newest));
+    } catch (e) { /* trình duyệt chặn sessionStorage → cứ chào */ }
+
+    const groups = WC_GROUPS.map((g) => {
+      const items = wcList.filter((n) => n.source === g.src);
+      const m = new Map();
+      items.forEach((n) => { const k = notifKind(n) || "Chưa ghi loại"; m.set(k, (m.get(k) || 0) + 1); });
+      return { ...g, items, kinds: [...m.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "vi")) };
+    }).filter((g) => g.items.length);
+
+    const re = wcList.filter((n) => n.kind === "reassign").length;
+    $("#wc-title").textContent = `Bạn được giao ${wcList.length} nhiệm vụ mới`;
+    $("#wc-sum").innerHTML = groups.map((g) =>
+      `<span class="wc-chip ${g.src}">${g.icon} ${esc(g.label)} <b>${g.items.length}</b></span>`).join("")
+      + (re ? `<span class="wc-chip note">${re} việc được điều chuyển sang bạn</span>` : "");
+    $("#wc-groups").innerHTML = groups.map((g) => `
+      <div class="wc-group">
+        <div class="wc-g-head">${g.icon} ${esc(g.label)} · <b>${g.items.length}</b> việc</div>
+        <div class="wc-kinds">${g.kinds.map(([k, n]) => `<span class="wc-kind">${esc(k)} <b>${n}</b></span>`).join("")}</div>
+        <ul class="wc-items">
+          ${g.items.slice(0, WC_MAX).map((n) => {
+            const due = notifDue(n);
+            return `<li><button type="button" class="wc-item" data-nid="${n.id}">
+              <span class="wc-i-main">${esc(n.body || n.title)}</span>
+              <span class="wc-i-meta">${due.text ? `<span class="${due.cls}">${esc(due.text)}</span>` : ""}${n.actor_id ? `<span>${esc(nameOf(n.actor_id))} giao</span>` : ""}</span>
+            </button></li>`;
+          }).join("")}
+          ${g.items.length > WC_MAX ? `<li class="muted small">… và ${g.items.length - WC_MAX} việc khác, xem ở chuông 🔔</li>` : ""}
+        </ul>
+      </div>`).join("");
+    $("#welcome-dialog").showModal();
   }
 
   // ---------- Render ----------
@@ -2518,6 +2591,18 @@
     $("#staff-form").addEventListener("submit", saveStaff);
 
     $$("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+    $("#wc-go").addEventListener("click", () => {
+      $("#welcome-dialog").close();
+      applyFilter({ status: "open", handler: state.me.id });
+      switchView("tasks");
+    });
+    $("#wc-read").addEventListener("click", async () => { await markNotifRead(wcList); $("#welcome-dialog").close(); });
+    $("#wc-groups").addEventListener("click", (e) => {
+      const b = e.target.closest(".wc-item");
+      if (!b) return;
+      $("#welcome-dialog").close();
+      openNotif(+b.dataset.nid);
+    });
   }
 
   // =================================================================
