@@ -102,19 +102,33 @@
     el.parentNode.insertBefore(wrap, el);
     wrap.appendChild(el);
 
-    const icon = document.createElement("span");
-    icon.className = "vn-date-btn";
-    icon.setAttribute("aria-hidden", "true");
-    icon.textContent = "📅";
-    wrap.appendChild(icon);
-
-    // Ô type="date" trong suốt nằm chồng lên nút: bấm vào là mở lịch của trình duyệt
+    // Ô type="date" ẩn, chỉ dùng để mượn bộ lịch của trình duyệt
     const nat = document.createElement("input");
     nat.type = "date";
     nat.className = "vn-date-native";
     nat.tabIndex = -1;
     nat.setAttribute("aria-hidden", "true");
     wrap.appendChild(nat);
+
+    // Nút 📅 bên phải ô: bấm là mở bộ lịch
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "vn-date-btn";
+    btn.tabIndex = -1;
+    btn.title = "Chọn ngày từ lịch";
+    btn.setAttribute("aria-label", "Chọn ngày từ lịch");
+    btn.textContent = "📅";
+    // Chrome chỉ mở lịch khi bấm đúng biểu tượng lịch bên trong ô date, hoặc khi gọi showPicker().
+    // Trình duyệt quá cũ không có showPicker thì để nút "trong suốt" cho cú bấm rơi xuống ô date nằm dưới.
+    if (typeof nat.showPicker !== "function") btn.classList.add("vn-date-btn-pass");
+    wrap.appendChild(btn);
+
+    btn.addEventListener("mousedown", (ev) => ev.preventDefault());   // không giật focus khỏi ô đang gõ
+    btn.addEventListener("click", () => {
+      if (el.disabled || el.readOnly) return;
+      nat.value = el.value || "";                                      // lịch mở đúng ngày đang có trong ô
+      try { nat.showPicker(); } catch (e) { nat.focus(); }
+    });
 
     // Mở lịch thì cho nó nhớ ngày đang có trong ô
     ["mousedown", "focus"].forEach((ev) => nat.addEventListener(ev, () => (nat.value = el.value || "")));

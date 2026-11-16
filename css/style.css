@@ -557,9 +557,15 @@ label > .was { margin-top: 4px; font-weight: 400; }
 .vn-date { position: relative; display: inline-block; min-width: 0; }
 .vn-date > input.vn-date-txt { width: 100%; padding-right: 32px; }
 .vn-date > .vn-date-btn {
-  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
-  font-size: 13px; line-height: 1; opacity: .7; pointer-events: none;
+  position: absolute; right: 3px; top: 50%; transform: translateY(-50%); z-index: 1;
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  -webkit-appearance: none; appearance: none; border: 0; background: transparent;
+  padding: 0; margin: 0; border-radius: 6px; box-shadow: none;
+  font-size: 13px; line-height: 1; opacity: .7; cursor: pointer;
 }
+.vn-date > .vn-date-btn:hover { opacity: 1; background: var(--hover-bg, rgba(0,0,0,.05)); }
+/* Trình duyệt không có showPicker(): cho cú bấm rơi xuống ô date trong suốt nằm dưới nút */
+.vn-date > .vn-date-btn.vn-date-btn-pass { pointer-events: none; }
 /* Ô type="date" trong suốt nằm chồng lên nút lịch; nút lịch gốc của Chrome được kéo
    kín ô nên bấm vào vùng đó là mở được bộ lịch của trình duyệt */
 .vn-date > input.vn-date-native {
