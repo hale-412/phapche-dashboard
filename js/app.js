@@ -230,7 +230,8 @@
   //   chuông sáng ngay, kèm thông báo của trình duyệt nếu được cho phép.
   // ---------------------------------------------------------------
   const NOTIF_LIMIT = 50;
-  let notifPoll;   // bộ hẹn dò lại thông báo (dự phòng khi realtime không tới)
+  let notifPoll;      // bộ hẹn dò lại thông báo (dự phòng khi realtime không tới)
+  let notifWarned;    // đã nhắc Trưởng phòng chạy SQL bật thông báo (chỉ nhắc 1 lần mỗi phiên)
   const NOTIF_SRC = { task: "Văn bản / Công việc", license: "Hồ sơ doanh nghiệp", update: "Cập nhật TTDN" };
   const APP_ICON = "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>\u2696</text></svg>";
 
@@ -271,6 +272,11 @@
       // Chưa chạy supabase/update-2026-11-09.sql thì ẩn chuông, phần còn lại của app vẫn chạy
       console.warn("Không đọc được thông báo:", error.message);
       $("#notif-btn").hidden = true;
+      // Nói rõ một lần cho Trưởng phòng biết vì sao không có thông báo nào, thay vì im lặng
+      if (isLead() && !notifWarned) {
+        notifWarned = true;
+        toast("Chưa bật thông báo giao việc: chạy file supabase/update-2026-11-09.sql trong SQL Editor của Supabase", true);
+      }
       return;
     }
     $("#notif-btn").hidden = false;
@@ -404,14 +410,20 @@
     return n.source === "update" ? (it.update_type || "") : vKindLabel(it);
   }
 
-  function showWelcomeNotice() {
+  // force = người dùng tự bấm "Xem tóm tắt" trong chuông → luôn hiện, kể cả đã chào trong phiên này
+  function showWelcomeNotice(force) {
     wcList = unreadNotifs().filter((n) => n.kind === "assign" || n.kind === "reassign");
-    if (!wcList.length) return;
+    if (!wcList.length) {
+      if (force) toast($("#notif-btn").hidden
+        ? "Chức năng thông báo chưa bật trên máy chủ (xem supabase/update-2026-11-09.sql)"
+        : "Hiện không có nhiệm vụ mới nào chưa đọc");
+      return;
+    }
     // Mỗi phiên trình duyệt chỉ chào một lần cho cùng một mớ thông báo; có thông báo mới hơn thì chào lại
     const newest = wcList.reduce((m, n) => Math.max(m, +n.id), 0);
     const key = `phapche_welcome_${state.me.id}`;
     try {
-      if (+(sessionStorage.getItem(key) || 0) >= newest) return;
+      if (!force && +(sessionStorage.getItem(key) || 0) >= newest) return;
       sessionStorage.setItem(key, String(newest));
     } catch (e) { /* trình duyệt chặn sessionStorage → cứ chào */ }
 
@@ -2591,6 +2603,7 @@
     $("#staff-form").addEventListener("submit", saveStaff);
 
     $$("[data-close]").forEach((b) => b.addEventListener("click", () => b.closest("dialog").close()));
+    $("#notif-summary").addEventListener("click", () => { closeNotifPanel(); showWelcomeNotice(true); });
     $("#wc-go").addEventListener("click", () => {
       $("#welcome-dialog").close();
       applyFilter({ status: "open", handler: state.me.id });
