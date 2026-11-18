@@ -475,6 +475,40 @@ label > .was { margin-top: 4px; font-weight: 400; }
 .rp-table tr.rp-grp th { border-bottom: 1px solid var(--line-2); font-size: 11px; text-transform: uppercase; letter-spacing: .02em; }
 .rp-table tr.rp-grp th[colspan] { text-align: center; }
 .rp-det-grp { font-size: 11px; text-transform: uppercase; letter-spacing: .02em; color: var(--muted); margin: 6px 0 2px; }
+/* ---- Báo cáo: mục "3. Chi tiết trong kỳ" ---- */
+.rp-dtools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 2px 0 12px; }
+.rp-dtools input[type="search"] {
+  flex: 1 1 280px; min-width: 0; font: inherit; padding: 8px 12px;
+  border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface); color: var(--ink);
+}
+.rp-dtools input[type="search"]:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+.rp-dblock { margin-bottom: 14px; }
+.rp-dhead { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+.rp-dhead h4 { margin: 0; font-size: 13px; font-weight: 600; }
+.rp-dtoggle {
+  border: 1px solid var(--line-2); background: var(--surface); color: var(--ink-2);
+  border-radius: 7px; width: 24px; height: 24px; line-height: 1; padding: 0; cursor: pointer;
+}
+.rp-dtoggle:hover { background: var(--surface-2); }
+.rp-dbadge {
+  font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums;
+  padding: 2px 9px; border-radius: 999px; background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary);
+}
+.rp-dbadge.zero { background: var(--surface-2); color: var(--muted); }
+.rp-dblock .table-wrap { max-height: 440px; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+.rp-dtable { font-size: 12.5px; }
+.rp-dtable th { white-space: nowrap; }
+.rp-dtable tbody tr { cursor: pointer; }
+.rp-dtable tbody tr:hover td { background: var(--surface-2); }
+.rp-dtable td { max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rp-dtable td.rp-dc-content { max-width: 380px; color: var(--ink-2); }
+.rp-dtable tr.rp-dc-od td:first-child { box-shadow: inset 3px 0 0 var(--critical); }
+.rp-dtable tr.rp-dgrp td {
+  background: var(--surface-2); font-weight: 600; white-space: nowrap; max-width: none;
+  position: sticky; top: 30px; z-index: 1;
+}
+.rp-dmore { margin-top: 8px; text-align: center; }
+
 
 /* ============ Tải văn bản lên để tự điền (js/docread.js) ============ */
 .read-box { margin-bottom: 12px; }

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dashboard Phòng Pháp chế - Kiểm tra</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚖️</text></svg>">
-<link rel="stylesheet" href="css/style.css?v=45">
+<link rel="stylesheet" href="css/style.css?v=46">
 </head>
 <body>
 
@@ -81,6 +81,7 @@
             <span id="rp-custom" class="rp-custom" hidden>
               <input type="date" id="rp-from"> <span class="muted">→</span> <input type="date" id="rp-to">
             </span>
+            <button class="btn ghost small" id="rp-print" type="button">🖨 In / lưu PDF</button>
             <button class="btn ghost small" id="rp-export" type="button">⬇ Xuất báo cáo (Excel)</button>
           </div>
         </div>
@@ -97,6 +98,17 @@
           nhóm cột <b>Đang còn xử lý</b> là số hồ sơ chưa kết thúc tại thời điểm hiện tại, gồm cả hồ sơ nhận từ kỳ trước.
           Bấm ▸ để xem phân tách theo loại việc cụ thể · bấm vào con số ở nhóm Đang còn xử lý để mở danh sách tương ứng.
           Việc có cả phụ trách mức 1 và mức 2 được tính cho cả hai chuyên viên, nên dòng Tổng cộng có thể lớn hơn số văn bản thực tế.</p>
+        <h3 class="rp-h">3. Chi tiết trong kỳ</h3>
+        <div id="rp-detail">
+          <div class="rp-dtools">
+            <input type="search" id="rp-q" placeholder="Tìm trong chi tiết: số văn bản, cơ quan gửi, doanh nghiệp, nội dung…">
+            <span class="muted small" id="rp-dcount"></span>
+          </div>
+          <div class="rp-dblock" id="rp-d-doc"></div>
+          <div class="rp-dblock" id="rp-d-lic"></div>
+          <p class="muted small">Bấm vào một dòng để mở văn bản / hồ sơ đó · bấm ▾ để thu gọn bảng.
+            Danh sách chạy theo đúng kỳ báo cáo đã chọn ở trên; bản đầy đủ mọi cột có trong file Excel xuất ra.</p>
+        </div>
       </div>
 
       <div class="grid-2">
@@ -1062,7 +1074,7 @@
 <script src="js/config.js?v=36"></script>
 <script src="js/docread.js?v=14"></script>
 <script src="js/datevn.js?v=2"></script>
-<script src="js/app.js?v=54"></script>
-<script src="vendor/xlsx-0.18.5.full.min.js" defer></script>
+<script src="js/app.js?v=55"></script>
+<script src="vendor/xlsx-js-style-1.2.0.bundle.js" defer></script>
 </body>
 </html>
