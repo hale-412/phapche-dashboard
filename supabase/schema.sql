@@ -681,6 +681,12 @@ left join public.profiles p2 on p2.id = u.handler2
 where u.status not in ('done','rejected')
   and u.deadline is not null and u.deadline <= current_date + 3;
 
+-- View doc theo quyen nguoi goi (tranh canh bao security_definer_view cua linter).
+-- Edge Function daily-reminder dung SERVICE_ROLE_KEY nen van doc duoc day du.
+alter view public.v_reminders set (security_invoker = on);
+revoke all on public.v_reminders from anon;
+grant select on public.v_reminders to authenticated;
+
 -- =====================================================================
 -- SAU KHI CHẠY XONG:
 --   Authentication > Users > Add user  -> tạo tài khoản Trưởng phòng

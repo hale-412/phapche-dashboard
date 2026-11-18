@@ -14,6 +14,7 @@ js/config.js        ⚠ Điền URL + anon key Supabase vào đây
 js/app.js           Logic ứng dụng
 supabase/schema.sql             Tạo bảng, phân quyền, trigger (chạy 1 lần)
 supabase/update-2026-11-09.sql  Thông báo khi được giao việc (mục 12, chạy thêm 1 lần)
+supabase/update-2026-11-18c.sql Vá 3 lỗi Database Linter: RLS cho company_adjustments + view v_reminders (chạy thêm 1 lần)
 supabase/functions/daily-reminder/  Edge Function gửi email nhắc việc
 supabase/cron.sql               Lịch chạy email 7h30 sáng thứ 2-6
 ```
