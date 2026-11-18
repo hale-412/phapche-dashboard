@@ -806,39 +806,116 @@
     rpDatesTimer = setTimeout(renderReport, 250);
   }
 
+  // Xuất báo cáo: 1 workbook 3 sheet (Tổng hợp · Văn bản hành chính · Hồ sơ doanh nghiệp).
+  // Không có thư viện Excel (vendor/xlsx chưa tải) thì rơi về CSV một file, các sheet nối tiếp nhau.
+  const RP_DOC_HEAD = ["STT", "Số văn bản", "Ngày văn bản", "Ngày đến Phòng", "Cơ quan gửi", "Phân loại (loại việc)", "Nội dung",
+    "Mã số DN", "Thông tin kèm theo", "Thời hạn", "Phụ trách 1", "Phụ trách 2", "Trạng thái", "Tiến độ %", "Ghi chú tiến độ", "Kết quả", "Mức độ"];
+  const RP_LIC_HEAD = ["STT", "Thủ tục", "Tên doanh nghiệp", "Mã số DN", "Cập nhật thông tin gì", "Số hồ sơ", "Ngày văn bản", "Ngày nhận",
+    "Hạn trả kết quả", "Nội dung", "Phụ trách 1", "Phụ trách 2", "Trạng thái", "Tiến độ %", "Số giấy phép", "Ngày cấp", "Ghi chú", "Kết quả", "Mức độ"];
+
+  // O ngay trong 2 sheet chi tiet: de trong khi khong co ngay (fmtDate tra ve "—", hop voi man hinh nhung lam nhieu bang du lieu)
+  const rpDate = (iso) => (iso ? fmtDate(iso) : "");
+
+  function rpDocRows(list) {
+    return list.slice().sort((a, b) => (vIn(b) || "").localeCompare(vIn(a) || "")).map((t, i) => [
+      i + 1, t.doc_number, rpDate(t.doc_date), rpDate(t.received_date), t.sender, vKindLabel(t), t.content,
+      t.tax_code, vSub(t), rpDate(t.deadline), nameOf(t.handler1), t.handler2 ? nameOf(t.handler2) : "",
+      statusLabel(t), vProgress(t), t.progress_note, t.result, t.priority === "urgent" ? "Khẩn" : "",
+    ]);
+  }
+
+  // Xếp theo thủ tục (cấp mới / cấp đổi / điều chỉnh…) rồi theo tên DN, để xem nhanh mỗi thủ tục gồm những DN nào
+  function rpLicRows(list) {
+    return list.slice().sort((a, b) =>
+      (a.procedure || "").localeCompare(b.procedure || "", "vi") ||
+      (a.company_name || "").localeCompare(b.company_name || "", "vi")
+    ).map((l, i) => [
+      i + 1, l.procedure, l.company_name, l.tax_code, l.update_item, l.file_number, rpDate(l.doc_date), rpDate(l.received_date),
+      rpDate(l.deadline), l.content, nameOf(l.handler1), l.handler2 ? nameOf(l.handler2) : "",
+      LSTAT_MAP[l.status]?.label || l.status, l.progress ?? 0, l.license_number, rpDate(l.issued_date), l.note, l.result,
+      l.priority === "urgent" ? "Khẩn" : "",
+    ]);
+  }
+
   function exportReportCSV() {
     const r = rpRange();
-    const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const line = (arr) => arr.map(cell).join(",");
     const lic = state.licenses.filter((x) => inRange(x, r)), doc = state.tasks.filter((x) => inRange(x, r));
-    const L = [
-      line([`BÁO CÁO TỔNG HỢP — ${CFG.DEPT_NAME}`]),
-      line([`Kỳ báo cáo: ${r.label}`, `từ ${rpEdge(r.from, "đầu kỳ")}`, `đến ${rpEdge(r.to, "nay")}`]),
-      "",
-      line(["1. VĂN BẢN / HỒ SƠ ĐẾN PHÒNG TRONG KỲ"]),
-      line(["Nhóm", "Loại việc cụ thể", "Số lượng", "Đang xử lý", "Đã kết thúc"]),
+    const period = [
+      [`BÁO CÁO TỔNG HỢP — ${CFG.DEPT_NAME}`],
+      [`Kỳ báo cáo: ${r.label}`, `từ ${rpEdge(r.from, "đầu kỳ")}`, `đến ${rpEdge(r.to, "nay")}`],
     ];
+
+    // --- Sheet 1: tổng hợp số lượng ---
+    const s1 = period.concat([
+      [],
+      ["1. VĂN BẢN / HỒ SƠ ĐẾN PHÒNG TRONG KỲ"],
+      ["Nhóm", "Loại việc cụ thể", "Số lượng", "Đang xử lý", "Đã kết thúc"],
+    ]);
     [["Hồ sơ doanh nghiệp", lic], ["Văn bản hành chính", doc]].forEach(([name, list]) => {
-      L.push(line([name, "— Tổng —", list.length, list.filter(isOpen).length, list.filter((x) => !isOpen(x)).length]));
+      s1.push([name, "— Tổng —", list.length, list.filter(isOpen).length, list.filter((x) => !isOpen(x)).length]);
       countByKind(list).forEach(([k, n]) => {
         const g = list.filter((x) => vKindLabel(x) === k);
-        L.push(line([name, k, n, g.filter(isOpen).length, g.filter((x) => !isOpen(x)).length]));
+        s1.push([name, k, n, g.filter(isOpen).length, g.filter((x) => !isOpen(x)).length]);
       });
     });
-    L.push("", line(["2. THEO CHUYÊN VIÊN"]));
-    L.push(line(["Chuyên viên", "Nhóm", "Loại việc cụ thể", "Nhận trong kỳ", "Đang còn xử lý"]));
+    s1.push([], ["2. THEO CHUYÊN VIÊN"], ["Chuyên viên", "Nhóm", "Loại việc cụ thể", "Nhận trong kỳ", "Đang còn xử lý"]);
     rpStaffRows(r).forEach((x) => {
-      L.push(line([x.p.full_name, "— Tổng —", "", x.got.total, `${x.open.total} (quá hạn ${x.overdue}, sắp đến hạn ${x.soon})`]));
+      s1.push([x.p.full_name, "— Tổng —", "", x.got.total, `${x.open.total} (quá hạn ${x.overdue}, sắp đến hạn ${x.soon})`]);
       [["Hồ sơ doanh nghiệp", "lic"], ["Văn bản hành chính", "doc"]].forEach(([name, k]) => {
-        L.push(line([x.p.full_name, name, "Tổng nhóm", x.got[k].length, x.open[k].length]));
+        s1.push([x.p.full_name, name, "Tổng nhóm", x.got[k].length, x.open[k].length]);
         const kinds = [...new Set(countByKind(x.got[k]).concat(countByKind(x.open[k])).map(([t]) => t))];
-        kinds.forEach((t) => L.push(line([x.p.full_name, name, t,
+        kinds.forEach((t) => s1.push([x.p.full_name, name, t,
           x.got[k].filter((y) => vKindLabel(y) === t).length,
-          x.open[k].filter((y) => vKindLabel(y) === t).length])));
+          x.open[k].filter((y) => vKindLabel(y) === t).length]));
       });
     });
-    const blob = new Blob(["\ufeff" + L.join("\r\n")], { type: "text/csv;charset=utf-8" });
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `phapche-baocao-${todayISO()}.csv` });
+
+    // --- Sheet 2: chi tiết từng văn bản hành chính ---
+    const docRows = rpDocRows(doc);
+    const s2 = period.concat([
+      [],
+      [`3. CHI TIẾT VĂN BẢN HÀNH CHÍNH ĐẾN TRONG KỲ (${doc.length} văn bản)`],
+      RP_DOC_HEAD,
+    ]).concat(docRows.length ? docRows : [["— Không có văn bản nào trong kỳ —"]]);
+
+    // --- Sheet 3: chi tiết hồ sơ DN, nhóm theo thủ tục ---
+    const licRows = rpLicRows(lic);
+    const s3 = period.concat([
+      [],
+      [`4. CHI TIẾT HỒ SƠ DOANH NGHIỆP ĐẾN TRONG KỲ (${lic.length} hồ sơ)`],
+      ["Thủ tục", "Số hồ sơ", "Số doanh nghiệp", "Đang xử lý", "Đã kết thúc"],
+    ]);
+    countByKind(lic).forEach(([k, n]) => {
+      const g = lic.filter((x) => vKindLabel(x) === k);
+      const dn = new Set(g.map((x) => normTax(x.tax_code) || (x.company_name || "").trim().toLowerCase())).size;
+      s3.push([k, n, dn, g.filter(isOpen).length, g.filter((x) => !isOpen(x)).length]);
+    });
+    s3.push([], ["Danh sách chi tiết (xếp theo thủ tục → tên doanh nghiệp)"], RP_LIC_HEAD);
+    (licRows.length ? licRows : [["— Không có hồ sơ nào trong kỳ —"]]).forEach((x) => s3.push(x));
+
+    const sheets = [["Tổng hợp", s1], ["Văn bản hành chính", s2], ["Hồ sơ doanh nghiệp", s3]];
+    const stamp = todayISO();
+    if (window.XLSX) {
+      const wb = XLSX.utils.book_new();
+      sheets.forEach(([name, aoa]) => {
+        const ws = XLSX.utils.aoa_to_sheet(aoa.map((row) => row.map((v) => (v == null ? "" : v))));
+        // Giãn cột theo nội dung dài nhất, chặn ở 60 ký tự cho khỏi tràn màn hình
+        const nCol = Math.max(...aoa.map((row) => row.length));
+        ws["!cols"] = Array.from({ length: nCol }, (_, c) =>
+          ({ wch: Math.min(60, Math.max(10, ...aoa.map((row) => String(row[c] ?? "").length + 2))) }));
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      });
+      XLSX.writeFile(wb, `phapche-baocao-${stamp}.xlsx`);
+      return;
+    }
+    const cell = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const L = [];
+    sheets.forEach(([name, aoa], i) => {
+      if (i) L.push("", cell(`===== ${name} =====`));
+      aoa.forEach((row) => L.push(row.map(cell).join(",")));
+    });
+    const blob = new Blob(["﻿" + L.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: `phapche-baocao-${stamp}.csv` });
     a.click(); URL.revokeObjectURL(a.href);
   }
 
